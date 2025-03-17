@@ -57,3 +57,44 @@ impl ChessBoard {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_initialize_board() {
+        let board = ChessBoard::initialize();
+        assert_eq!(board.pawns, 0x00FF00000000FF00);
+        assert_eq!(board.knights, 0x4200000000000042);
+        assert_eq!(board.bishops, 0x2400000000000024);
+        assert_eq!(board.rooks, 0x8100000000000081);
+        assert_eq!(board.queens, 0x0800000000000008);
+        assert_eq!(board.kings, 0x1000000000000010);
+        assert_eq!(board.white_pieces, 0x000000000000FFFF);
+        assert_eq!(board.black_pieces, 0xFFFF000000000000);
+        assert_eq!(board.side_to_move, true);
+        assert_eq!(board.en_passant, 0);
+        assert_eq!(board.castling_rights, 0b1111);
+        assert_eq!(board.halfmove_clock, 0);
+        assert_eq!(board.fullmove_number, 1);
+    }
+
+    #[test]
+    fn test_empty_board() {
+        let board = ChessBoard::empty();
+        assert_eq!(board.pawns, 0);
+        assert_eq!(board.knights, 0);
+        assert_eq!(board.bishops, 0);
+        assert_eq!(board.rooks, 0);
+        assert_eq!(board.queens, 0);
+        assert_eq!(board.kings, 0);
+        assert_eq!(board.white_pieces, 0);
+        assert_eq!(board.black_pieces, 0);
+        assert_eq!(board.side_to_move, true);
+        assert_eq!(board.en_passant, 0);
+        assert_eq!(board.castling_rights, 0);
+        assert_eq!(board.halfmove_clock, 0);
+        assert_eq!(board.fullmove_number, 1);
+    }
+}
