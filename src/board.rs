@@ -14,8 +14,8 @@ pub struct ChessBoard {
     fullmove_number: u16, // tracks full moves since start of game.
 }
 
+/// Creates a new chess board with the standard starting position.
 impl ChessBoard {
-    /// Creates a new chess board with standard starting positions by default.
     pub fn initialize() -> Self {
         Self {
             pawns: 0x00FF00000000FF00,   // pawns at ranks 2 & 7.
@@ -31,6 +31,27 @@ impl ChessBoard {
             side_to_move: true,
             en_passant: 0,
             castling_rights: 0b1111,
+            halfmove_clock: 0,
+            fullmove_number: 1,
+        }
+    }
+
+    /// Creates a new empty chess board. White to move by default.
+    pub fn empty() -> Self {
+        Self {
+            pawns: 0,
+            knights: 0,
+            bishops: 0,
+            rooks: 0,
+            queens: 0,
+            kings: 0,
+
+            white_pieces: 0,
+            black_pieces: 0,
+
+            side_to_move: true, // white to move by default.
+            en_passant: 0,
+            castling_rights: 0,
             halfmove_clock: 0,
             fullmove_number: 1,
         }
