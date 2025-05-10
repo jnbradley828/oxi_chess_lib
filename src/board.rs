@@ -92,8 +92,8 @@ pub fn verify_fen(fen: &str) -> bool {
     //      For each line, take count of alphabetical characters and add value of digits. If for any line, sum != 8, return false.
     //      For efficiency, only check if characters are in "PNBRQKpnbrqk12345678".
     //      Check for 1 white and 1 black king while we're at it.
-    let mut white_king_count = 0;
-    let mut black_king_count = 0;
+    let mut white_king_count: u8 = 0;
+    let mut black_king_count: u8 = 0;
 
     for rank in &ranks {
         let mut square_count = 0;
@@ -135,15 +135,46 @@ pub fn verify_fen(fen: &str) -> bool {
     if !"KQkq-".contains(fen_components[2]) || fen_components[2].len() > 4 {
         return false;
     }
+    //      Castling rights cannot be both empty and not empty.
+    if fen_components[2].contains("-") && fen_components[2] != "-" {
+        return false;
+    }
 
     // En passant target square:
+    //      If len > 2, return false.
+    if fen_components[3].len() > 2 {
+        return false;
+    }
     //      If not '-':
-    //          If first char not "a".."z" or second char not "1".."8":
+    //          If first char not "a".."h" or second char not '6' or '3':
     //              return false.
+    if fen_components[3] != "-" {
+        let mut en_passant_chars = fen_components[3].chars();
+        let en_passant_char1 = en_passant_chars.next().unwrap(); // safe to unwrap because the component cannot be empty (white space erased, each component has len > 1.)
+        if en_passant_char1 < 'a' || en_passant_char1 > 'h' {
+            return false;
+        }
+        // Use Some() in case there is no second char, it returns false.
+        if let Some(en_passant_char2) = en_passant_chars.next() {
+            if en_passant_char2 != '6' && en_passant_char2 != '3' {
+                return false;
+            }
+        } else {
+            return false;
+        }
+    }
+
     // Halfmove clock:
     //      If not a non-negative integer, return false.
+    if !fen_components[4].parse::<u16>().is_ok() {
+        return false;
+    }
     // Fullmove number:
     //      If not a positive integer, return false.
+    if !fen_components[5].parse::<u16>().is_ok() || fen_components[5] == "0" {
+        return false;
+    }
+
     // Finally: return true.
     return true;
 }
@@ -236,5 +267,45 @@ mod tests {
         let castle_invalid_char_false_fen =
             verify_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQka - 0 1"); // Invalid character in castling rights.
         assert_eq!(castle_invalid_char_false_fen, false);
+
+        let castling_contradiction_false_fen =
+            verify_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w -K - 0 1");
+        assert_eq!(castling_contradiction_false_fen, false);
+
+        let invalid_len_en_passant_false_fen =
+            verify_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq a33 0 1");
+        assert_eq!(invalid_len_en_passant_false_fen, false);
+
+        let invalid_char_en_passant_false_fen =
+            verify_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq i3 0 1");
+        assert_eq!(invalid_char_en_passant_false_fen, false);
+
+        let invalid_num_en_passant_false_fen =
+            verify_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq a2 0 1");
+        assert_eq!(invalid_num_en_passant_false_fen, false);
+
+        let invalid_halfmove_negative_false_fen =
+            verify_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - -1 1");
+        assert_eq!(invalid_halfmove_negative_false_fen, false);
+
+        let invalid_halfmove_char_false_fen =
+            verify_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - a 1");
+        assert_eq!(invalid_halfmove_char_false_fen, false);
+
+        let invalid_fullmove_negative_false_fen =
+            verify_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 -1");
+        assert_eq!(invalid_fullmove_negative_false_fen, false);
+
+        let invalid_fullmove_zero_false_fen =
+            verify_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 0");
+        assert_eq!(invalid_fullmove_zero_false_fen, false);
+
+        let invalid_fullmove_char_false_fen =
+            verify_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 a");
+        assert_eq!(invalid_fullmove_char_false_fen, false);
+
+        let random_fen2 =
+            verify_fen("rnbqk2r/pp2nppp/2pbp3/3p4/3P4/1P1BPN2/PBP2PPP/RN1QK2R b KQkq - 2 6");
+        assert_eq!(random_fen2, true);
     }
 }
