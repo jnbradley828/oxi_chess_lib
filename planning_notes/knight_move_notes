@@ -1,0 +1,39 @@
+
+
+
+
+knight moves conditions to be met: (note: board is flipped horizontally, a1 is the bottom right corner)
+
+
+middle of the board knight:
+
+0 0 0 0 0 0 0 0		--->	0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0				0 0 1 0 1 0 0 0
+0 0 0 0 0 0 0 0				0 1 0 0 0 1 0 0
+0 0 0 1 0 0 0 0				0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0				0 1 0 0 0 1 0 0
+0 0 0 0 0 0 0 0				0 0 1 0 1 0 0 0
+0 0 0 0 0 0 0 0				0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0				0 0 0 0 0 0 0 0
+
+
+0 0 0 0 0 0 0 0		--->	0 0 0 0 0 0 0 0        If knight is on b or g file, exclude a file. Same idea for a and h file (exclude 2 files), and 1st and 2nd ranks have similar issues.
+0 0 0 0 0 0 0 0				1 0 1 0 0 0 0 0
+0 0 0 0 0 0 0 0				0 0 0 1 0 0 0 0
+0 1 0 0 0 0 0 0				0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0				0 0 0 1 0 0 0 0
+0 0 0 0 0 0 0 0				1 0 1 0 0 0 0 0
+0 0 0 0 0 0 0 0				0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0				0 0 0 0 0 0 0 0
+
+knight moves:
+up 2,   right 1: << 15    exclude: if knight is on (7th or 8th) ranks or a file.
+up 2,   left  1: << 17    exclude: if knight is on (7th or 8th) ranks or h file.
+up 1,   right 2: << 6     exclude: if knight is on 8th rank or (a or b) files.  
+up 1,   left  2: << 10    exclude: if knight is on 8th rank or (g or h) files.  
+
+
+down 2, right 1: >> 17    exclude: if knight is on (1st or 2nd) ranks or a file.
+down 2, left  1: >> 15    exclude: if knight is on (1st or 2nd) ranks or h file.
+down 1, right 2: >> 10    exclude: if knight is on 1st rank or (a or b) files.  
+down 1, left  2: >> 6     exclude: if knight is on 1st rank or (g or h) files.  
