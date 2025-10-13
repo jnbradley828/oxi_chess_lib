@@ -13,7 +13,7 @@ pub fn on_a_file(piece_location: &u64) -> bool {
 pub fn on_b_file(piece_location: &u64) -> bool {
     // if more than one bit = 1: raise error.
 
-    if (piece_location.trailing_zeros() as i8 - 1) % 8 == 0 {
+    if piece_location.trailing_zeros() % 8 == 1 {
         return true;
     } else {
         return false;
@@ -23,7 +23,7 @@ pub fn on_b_file(piece_location: &u64) -> bool {
 pub fn on_c_file(piece_location: &u64) -> bool {
     // if more than one bit = 1: raise error.
 
-    if (piece_location.trailing_zeros() as i8 - 2) % 8 == 0 {
+    if piece_location.trailing_zeros() % 8 == 2 {
         return true;
     } else {
         return false;
@@ -33,7 +33,7 @@ pub fn on_c_file(piece_location: &u64) -> bool {
 pub fn on_d_file(piece_location: &u64) -> bool {
     // if more than one bit = 1: raise error.
 
-    if (piece_location.trailing_zeros() as i8 - 3) % 8 == 0 {
+    if piece_location.trailing_zeros() % 8 == 3 {
         return true;
     } else {
         return false;
@@ -43,7 +43,7 @@ pub fn on_d_file(piece_location: &u64) -> bool {
 pub fn on_e_file(piece_location: &u64) -> bool {
     // if more than one bit = 1: raise error.
 
-    if (piece_location.trailing_zeros() as i8 - 4) % 8 == 0 {
+    if piece_location.trailing_zeros() % 8 == 4 {
         return true;
     } else {
         return false;
@@ -53,7 +53,7 @@ pub fn on_e_file(piece_location: &u64) -> bool {
 pub fn on_f_file(piece_location: &u64) -> bool {
     // if more than one bit = 1: raise error.
 
-    if (piece_location.trailing_zeros() as i8 - 5) % 8 == 0 {
+    if piece_location.trailing_zeros() % 8 == 5 {
         return true;
     } else {
         return false;
@@ -63,7 +63,7 @@ pub fn on_f_file(piece_location: &u64) -> bool {
 pub fn on_g_file(piece_location: &u64) -> bool {
     // if more than one bit = 1: raise error.
 
-    if (piece_location.trailing_zeros() as i8 - 6) % 8 == 0 {
+    if piece_location.trailing_zeros() % 8 == 6 {
         return true;
     } else {
         return false;
@@ -73,7 +73,7 @@ pub fn on_g_file(piece_location: &u64) -> bool {
 pub fn on_h_file(piece_location: &u64) -> bool {
     // if more than one bit = 1: raise error.
 
-    if (piece_location.trailing_zeros() as i8 - 7) % 8 == 0 {
+    if piece_location.trailing_zeros() % 8 == 7 {
         return true;
     } else {
         return false;
