@@ -80,6 +80,69 @@ pub fn on_h_file(piece_location: &u64) -> bool {
     }
 }
 
+pub fn on_rank_1(piece_location: &u64) -> bool {
+    if piece_location < &0x0000000000000100 {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+pub fn on_rank_2(piece_location: &u64) -> bool {
+    if piece_location < &0x0000000000010000 && piece_location > &0x0000000000000080 {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+pub fn on_rank_3(piece_location: &u64) -> bool {
+    if piece_location < &0x0000000001000000 && piece_location > &0x0000000000008000 {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+pub fn on_rank_4(piece_location: &u64) -> bool {
+    if piece_location < &0x0000000100000000 && piece_location > &0x0000000000800000 {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+pub fn on_rank_5(piece_location: &u64) -> bool {
+    if piece_location < &0x0000010000000000 && piece_location > &0x0000000080000000 {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+pub fn on_rank_6(piece_location: &u64) -> bool {
+    if piece_location < &0x0001000000000000 && piece_location > &0x0000008000000000 {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+pub fn on_rank_7(piece_location: &u64) -> bool {
+    if piece_location < &0x0100000000000000 && piece_location > &0x0000800000000000 {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+pub fn on_rank_8(piece_location: &u64) -> bool {
+    if piece_location > &0x0080000000000000 {
+        return true;
+    } else {
+        return false;
+    }
+}
 
 // Unit Tests
 
@@ -192,6 +255,102 @@ fn test_on_h_file() {
         } else {
             assert_eq!(on_h_file(&square), false);
         }
+    }
+}
+
+#[test]
+fn test_on_rank_1() {
+    for i in 0..8 {
+        let square: u64 = 1 << i;
+        assert_eq!(on_rank_1(&square), true);
+    }
+    for i in 8..64 {
+        let square: u64 = 1 << i;
+        assert_eq!(on_rank_1(&square), false);
+    }
+}
+
+#[test]
+fn test_on_rank_2() {
+    for i in (0..8).chain(16..64) {
+        let square: u64 = 1 << i;
+        assert_eq!(on_rank_2(&square), false);
+    }
+    for i in 8..16 {
+        let square: u64 = 1 << i;
+        assert_eq!(on_rank_2(&square), true);
+    }
+}
+
+#[test]
+fn test_on_rank_3() {
+    for i in (0..16).chain(24..64) {
+        let square: u64 = 1 << i;
+        assert_eq!(on_rank_3(&square), false);
+    }
+    for i in 16..24 {
+        let square: u64 = 1 << i;
+        assert_eq!(on_rank_3(&square), true);
+    }
+}
+
+#[test]
+fn test_on_rank_4() {
+    for i in (0..24).chain(32..64) {
+        let square: u64 = 1 << i;
+        assert_eq!(on_rank_4(&square), false);
+    }
+    for i in 24..32 {
+        let square: u64 = 1 << i;
+        assert_eq!(on_rank_4(&square), true);
+    }
+}
+
+#[test]
+fn test_on_rank_5() {
+    for i in (0..32).chain(40..64) {
+        let square: u64 = 1 << i;
+        assert_eq!(on_rank_5(&square), false);
+    }
+    for i in 32..40 {
+        let square: u64 = 1 << i;
+        assert_eq!(on_rank_5(&square), true);
+    }
+}
+
+#[test]
+fn test_on_rank_6() {
+    for i in (0..40).chain(48..64) {
+        let square: u64 = 1 << i;
+        assert_eq!(on_rank_6(&square), false);
+    }
+    for i in 40..48 {
+        let square: u64 = 1 << i;
+        assert_eq!(on_rank_6(&square), true);
+    }
+}
+
+#[test]
+fn test_on_rank_7() {
+    for i in (0..48).chain(56..64) {
+        let square: u64 = 1 << i;
+        assert_eq!(on_rank_7(&square), false);
+    }
+    for i in 48..56 {
+        let square: u64 = 1 << i;
+        assert_eq!(on_rank_7(&square), true);
+    }
+}
+
+#[test]
+fn test_on_rank_8() {
+    for i in 0..56 {
+        let square: u64 = 1 << i;
+        assert_eq!(on_rank_8(&square), false);
+    }
+    for i in 56..64 {
+        let square: u64 = 1 << i;
+        assert_eq!(on_rank_8(&square), true);
     }
 }
 
