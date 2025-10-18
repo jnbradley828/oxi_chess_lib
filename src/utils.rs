@@ -158,6 +158,31 @@ pub fn bb_to_square(bitboard: &u64) -> Result<String, String> {
         Ok(square)
     }
 }
+
+const FILES: [char; 8] = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+const RANKS: [char; 8] = ['1', '2', '3', '4', '5', '6', '7', '8'];
+
+pub fn square_to_bb(square: &str) -> Result<u64, String> {
+    if square.chars().count() != 2 {
+        return Err("Invalid square: too many characters.".to_string());
+    }
+    let file = square.chars().nth(0).unwrap();
+    let rank = square.chars().nth(1).unwrap();
+    if !(FILES.contains(&file) && RANKS.contains(&rank)) {
+        return Err("Invalid square: invalid file or rank.".to_string());
+    }
+
+    let mut modifier: u64 = 0;
+
+    modifier += (rank.to_digit(10).unwrap() as u64 - 1) * 8;
+    let file_modifier = (file as u8 - b'a') as u64;
+    modifier += file_modifier;
+
+    let square: u64 = 1 << modifier;
+    Ok(square)
+    
+}
+
 // Unit Tests
 
 
@@ -385,4 +410,29 @@ fn test_bb_to_square() {
     // invalid: too many squares
     let board5: u64 = 3;
     assert_eq!(bb_to_square(&board5), Err("Invalid bitboard: more than one piece on the board.".to_string()));
+}
+
+#[test]
+fn test_square_to_bb() {
+    // a1
+    let square1: &str = "a1";
+    assert_eq!(square_to_bb(square1).unwrap(), 1);
+    // e4
+    let square2: &str = "e4";
+    assert_eq!(square_to_bb(square2).unwrap(), 0x0000000010000000);
+    // h8
+    let square3: &str = "h8";
+    assert_eq!(square_to_bb(square3).unwrap(), 0x8000000000000000);
+    // c7
+    let square4: &str = "c7";
+    assert_eq!(square_to_bb(square4).unwrap(), 0x0004000000000000);
+    // invalid: file out of range
+    let square5: &str = "i1";
+    assert_eq!(square_to_bb(square5), Err("Invalid square: invalid file or rank.".to_string()));
+    // invalid: rank out of range
+    let square6: &str = "a9";
+    assert_eq!(square_to_bb(square6), Err("Invalid square: invalid file or rank.".to_string()));
+    // invalid: too many chars
+    let square7: &str = "a11";
+    assert_eq!(square_to_bb(square7), Err("Invalid square: too many characters.".to_string()));
 }
