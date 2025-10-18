@@ -144,6 +144,20 @@ pub fn on_rank_8(piece_location: &u64) -> bool {
     }
 }
 
+pub fn bb_to_square(bitboard: &u64) -> Result<String, String> {
+    let bb_null = bitboard & (bitboard - 1);
+    if bb_null != 0 {
+        Err("Invalid bitboard: more than one piece on the board.".to_string())
+    } else {
+        let bit_position = bitboard.trailing_zeros();
+        let rank = (bit_position / 8) + 1;
+        let file_num = (bit_position % 8) as u8; // ASCII is in u8 format.
+        let file = (b'a' + file_num) as char;
+
+        let square = format!("{}{}", file, rank);
+        Ok(square)
+    }
+}
 // Unit Tests
 
 
@@ -354,3 +368,21 @@ fn test_on_rank_8() {
     }
 }
 
+#[test]
+fn test_bb_to_square() {
+    // a1
+    let board1: u64 = 1;
+    assert_eq!(bb_to_square(&board1).unwrap(), "a1");
+    // e4
+    let board2: u64 = 0x0000000010000000;
+    assert_eq!(bb_to_square(&board2).unwrap(), "e4");
+    // h8
+    let board3: u64 = 0x8000000000000000;
+    assert_eq!(bb_to_square(&board3).unwrap(), "h8");
+    // c7
+    let board4: u64 = 0x0004000000000000;
+    assert_eq!(bb_to_square(&board4).unwrap(), "c7");
+    // invalid: too many squares
+    let board5: u64 = 3;
+    assert_eq!(bb_to_square(&board5), Err("Invalid bitboard: more than one piece on the board.".to_string()));
+}
