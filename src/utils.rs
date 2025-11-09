@@ -183,6 +183,16 @@ pub fn square_to_bb(square: &str) -> Result<u64, String> {
     
 }
 
+pub fn print_board_binary(bitboard: &u64) {
+    // prints a binary mapping of a bitboard (no piece type information) for debugging and development purposes.
+    let binary_bb = format!("{:064b}", bitboard);
+    for i in 0..8 {
+        let line_mirrored = &binary_bb[(i*8)..((i+1)*8)];
+        let line: String = line_mirrored.chars().rev().collect();
+        println!("{}", line);
+    }
+}
+
 // Unit Tests
 
 
