@@ -88,15 +88,34 @@ pub fn bishop_attacks(square: &u64) -> u64 {
     bishop_attacks
 }
     
-pub fn rook_attacks(color: &bool, square: &u64) -> u64 {
+pub fn rook_attacks(square: &u64) -> u64 {
+    let mut rook_attacks: u64 = 0;
+    
+    let square_name = utils::bb_to_square(&square).unwrap();
+    let file = square_name.chars().nth(0).unwrap();
+    let rank = square_name.chars().nth(1).unwrap();
+
+    let file_modifier = (file as u64) - (b'a' as u64);
+    for r in 0..8 {
+        let sq_modifier: u64 = (8*r) + file_modifier;
+        rook_attacks = rook_attacks | (1 << sq_modifier);
+    }
+
+    let rank_val = (rank as u64) - (b'0' as u64);
+    let left_sq = (rank_val - 1) * 8;
+    for f in left_sq..(left_sq + 8) {
+        rook_attacks = rook_attacks | (1 << f);
+    }
+
+    rook_attacks = rook_attacks ^ square;
+    rook_attacks
+}
+
+pub fn queen_attacks(square: &u64) -> u64 {
     todo!("implement");
 }
 
-pub fn queen_attacks(color: &bool, square: &u64) -> u64 {
-    todo!("implement");
-}
-
-pub fn king_attacks(color: &bool, square: &u64) -> u64 {
+pub fn king_attacks(square: &u64) -> u64 {
     todo!("implement");
 }
 
@@ -221,6 +240,29 @@ fn test_bishop_attacks() {
     // // d4
     let square5 = utils::square_to_bb("d4").unwrap();
     let sq5_bishop_attacks = bishop_attacks(&square5);
-    utils::print_board_binary(&sq5_bishop_attacks);
     assert_eq!(sq5_bishop_attacks, 0x8041221400142241);
+}
+
+#[test]
+fn test_rook_attacks() {
+    // a1
+    let square1 = utils::square_to_bb("a1").unwrap();
+    let sq1_rook_attacks = rook_attacks(&square1);
+    assert_eq!(sq1_rook_attacks, 0x01010101010101FE);
+    // a8
+    let square2 = utils::square_to_bb("a8").unwrap();
+    let sq2_rook_attacks = rook_attacks(&square2);
+    assert_eq!(sq2_rook_attacks, 0xFE01010101010101);
+    // h1
+    let square3 = utils::square_to_bb("h1").unwrap();
+    let sq3_rook_attacks = rook_attacks(&square3);
+    assert_eq!(sq3_rook_attacks, 0x808080808080807F);
+    // h8
+    let square4 = utils::square_to_bb("h8").unwrap();
+    let sq4_rook_attacks = rook_attacks(&square4);
+    assert_eq!(sq4_rook_attacks, 0x7F80808080808080);
+    // d4
+    let square5 = utils::square_to_bb("d4").unwrap();
+    let sq5_rook_attacks = rook_attacks(&square5);
+    assert_eq!(sq5_rook_attacks, 0x08080808F7080808);
 }
