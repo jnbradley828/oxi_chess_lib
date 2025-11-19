@@ -46,10 +46,48 @@ pub fn knight_attacks(square: &u64) -> u64 {
     knight_attacks
 }
 
-pub fn bishop_attacks(color: &bool, square: &u64) -> u64 {
-    todo!("implement");
-}
+pub fn bishop_attacks(square: &u64) -> u64 {
+    let mut bishop_attacks: u64 = 0;
+    
+    let square_name = utils::bb_to_square(&square).unwrap();
+    println!("bishop on square {}", square_name);
+    let file = (square_name.chars().nth(0).unwrap() as u8) - b'a' + 1;
+    let rank = (square_name.chars().nth(1).unwrap() as u8) - b'0';
 
+    let sum = file + rank;
+    let diff: i8 = (rank as i8) - (file as i8);
+
+    // include all squares with same (file + rank) sum. ('a' = 1, 'b' = 2, etc.)
+    for i in 1.max(sum.saturating_sub(8))..sum.min(9) {
+        let ifile = (b'a' + (i-1)) as char;
+        let irank = (b'0' + (sum - i)) as char;
+        
+        let mut sq_name = String::with_capacity(2);
+        sq_name.push(ifile);
+        sq_name.push(irank);
+
+        let sq = utils::square_to_bb(&sq_name).unwrap();
+        bishop_attacks = bishop_attacks | sq;
+    }
+
+    // include all squares with same (rank - file) difference.
+    for j in 1.max(1 + diff)..9.min(9 + diff) {
+        let jrank = ((b'0' as u8) + (j as u8)) as char;
+        let jfile = ((b'a' as i8) + (j as i8 - diff - 1)) as u8 as char;
+
+        let mut sq_name = String::with_capacity(2);
+        sq_name.push(jfile);
+        sq_name.push(jrank);
+        println!("{}", sq_name);
+
+        let sq = utils::square_to_bb(&sq_name).unwrap();
+        bishop_attacks = bishop_attacks | sq;
+    } 
+
+    bishop_attacks = bishop_attacks ^ square;
+    bishop_attacks
+}
+    
 pub fn rook_attacks(color: &bool, square: &u64) -> u64 {
     todo!("implement");
 }
@@ -160,4 +198,29 @@ fn test_knight_attacks() {
     let square11 = utils::square_to_bb("b7").unwrap();
     let sq11_knight_attacks = knight_attacks(&square11);
     assert_eq!(sq11_knight_attacks, 0x0800080500000000);
+}
+
+#[test]
+fn test_bishop_attacks() {
+    // a1
+    let square1 = utils::square_to_bb("a1").unwrap();
+    let sq1_bishop_attacks = bishop_attacks(&square1);
+    assert_eq!(sq1_bishop_attacks, 0x8040201008040200);
+    // // a8
+    let square2 = utils::square_to_bb("a8").unwrap();
+    let sq2_bishop_attacks = bishop_attacks(&square2);
+    assert_eq!(sq2_bishop_attacks, 0x0002040810204080);
+    // // h1
+    let square3 = utils::square_to_bb("h1").unwrap();
+    let sq3_bishop_attacks = bishop_attacks(&square3);
+    assert_eq!(sq3_bishop_attacks, 0x0102040810204000);
+    // // h8
+    let square4 = utils::square_to_bb("h8").unwrap();
+    let sq4_bishop_attacks = bishop_attacks(&square4);
+    assert_eq!(sq4_bishop_attacks, 0x0040201008040201);
+    // // d4
+    let square5 = utils::square_to_bb("d4").unwrap();
+    let sq5_bishop_attacks = bishop_attacks(&square5);
+    utils::print_board_binary(&sq5_bishop_attacks);
+    assert_eq!(sq5_bishop_attacks, 0x8041221400142241);
 }
