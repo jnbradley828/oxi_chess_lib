@@ -77,7 +77,6 @@ pub fn bishop_attacks(square: &u64) -> u64 {
         let mut sq_name = String::with_capacity(2);
         sq_name.push(jfile);
         sq_name.push(jrank);
-        println!("{}", sq_name);
 
         let sq = utils::square_to_bb(&sq_name).unwrap();
         bishop_attacks = bishop_attacks | sq;
@@ -144,10 +143,39 @@ pub fn king_attacks(square: &u64) -> u64 {
 }
 
 pub fn find_pseudolegal_moves(board: &board::ChessBoard) -> Vec<(u64, u64)> {
-    // The idea is to return a vector containing types (u64, u64).
+    // The idea is to return a vector containing type (u64, u64).
     // The first u64 denotes just one bit that shows the location of the from-piece.
     // The second u64 is a mask where every square the from-piece attacks has bit value 1.
-    todo!("Implement this after creating attack mask functions.")
+    let mut psm_list: Vec<(u64, u64)> = Vec::new();
+
+    let mut color_mask: u64 = 0;
+    if board.side_to_move {
+        color_mask = board.white_pieces;
+    } else {
+        color_mask = board.black_pieces;
+    }
+
+    for piece_bb in [("pawns", board.pawns), ("knights", board.knights), ("bishops", board.bishops), ("rooks", board.rooks), ("queens", board.queens), ("kings", board.kings)] {
+        let mut colored_bb = piece_bb.1 & color_mask;
+        
+        while colored_bb.trailing_zeros() != 64 {
+            let from_square: u64 = 1 << colored_bb.trailing_zeros();
+
+            let attack_squares: u64 = match piece_bb.0 {
+                "pawns" => pawn_attacks(&board.side_to_move, &from_square),
+                "knights" => knight_attacks(&from_square),
+                "bishops" => bishop_attacks(&from_square),
+                "rooks" => rook_attacks(&from_square),
+                "queens" => queen_attacks(&from_square),
+                "kings" => king_attacks(&from_square),
+                &_ => 0,
+            };
+
+            colored_bb = colored_bb & !(1<<colored_bb.trailing_zeros()); // erase current from_piece from colored_bb.
+            psm_list.push((from_square, attack_squares));
+        }
+    }
+    psm_list
 }
 
 #[test]
@@ -338,3 +366,78 @@ fn test_king_attacks() {
     let sq5_king_attacks = king_attacks(&square5);
     assert_eq!(sq5_king_attacks, (0x0000001C141C0000));
     }
+
+#[test]
+fn test_find_pseudolegal_moves() {
+    // 2 pieces of each type (except king), black to move
+    let board1 = board::ChessBoard::initialize_from_fen("rnbqkp2/rnbq1p2/8/8/8/8/8/K7 b KQkq - 0 1").unwrap();
+    let psl_moves = find_pseudolegal_moves(&board1);
+
+    let mut psl_moves_manual: Vec<(u64, u64)> = Vec::new();
+
+    let p_bb1 = utils::square_to_bb("f7").unwrap();
+    psl_moves_manual.push((p_bb1, pawn_attacks(&false, &p_bb1)));
+    let p_bb2 = utils::square_to_bb("f8").unwrap();
+    psl_moves_manual.push((p_bb2, pawn_attacks(&false, &p_bb2)));
+
+    let n_bb1 = utils::square_to_bb("b7").unwrap();
+    psl_moves_manual.push((n_bb1, knight_attacks(&n_bb1)));
+    let n_bb2 = utils::square_to_bb("b8").unwrap();
+    psl_moves_manual.push((n_bb2, knight_attacks(&n_bb2)));
+    
+    let b_bb1 = utils::square_to_bb("c7").unwrap();
+    psl_moves_manual.push((b_bb1, bishop_attacks(&b_bb1)));
+    let b_bb2 = utils::square_to_bb("c8").unwrap();
+    psl_moves_manual.push((b_bb2, bishop_attacks(&b_bb2)));
+    
+    let r_bb1 = utils::square_to_bb("a7").unwrap();
+    psl_moves_manual.push((r_bb1, rook_attacks(&r_bb1)));
+    let r_bb2 = utils::square_to_bb("a8").unwrap();
+    psl_moves_manual.push((r_bb2, rook_attacks(&r_bb2)));
+    
+    let q_bb1 = utils::square_to_bb("d7").unwrap();
+    psl_moves_manual.push((q_bb1, queen_attacks(&q_bb1)));
+    let q_bb2 = utils::square_to_bb("d8").unwrap();
+    psl_moves_manual.push((q_bb2, queen_attacks(&q_bb2)));
+
+    let k_bb1 = utils::square_to_bb("e8").unwrap();
+    psl_moves_manual.push((k_bb1, king_attacks(&k_bb1)));
+    
+    assert_eq!(psl_moves, psl_moves_manual);
+
+    // 2 pieces of each type (except king), white to move
+    let board2 = board::ChessBoard::initialize_from_fen("k7/8/8/8/8/8/RNBQ1P2/RNBQKP2 w KQkq - 0 1").unwrap();
+    let psl_moves = find_pseudolegal_moves(&board2);
+
+    let mut psl_moves_manual: Vec<(u64, u64)> = Vec::new();
+    
+    let p_bb3 = utils::square_to_bb("f1").unwrap();
+    psl_moves_manual.push((p_bb3, pawn_attacks(&true, &p_bb3)));
+    let p_bb4 = utils::square_to_bb("f2").unwrap();
+    psl_moves_manual.push((p_bb4, pawn_attacks(&true, &p_bb4)));
+
+    let n_bb3 = utils::square_to_bb("b1").unwrap();
+    psl_moves_manual.push((n_bb3, knight_attacks(&n_bb3)));
+    let n_bb4 = utils::square_to_bb("b2").unwrap();
+    psl_moves_manual.push((n_bb4, knight_attacks(&n_bb4)));
+    
+    let b_bb3 = utils::square_to_bb("c1").unwrap();
+    psl_moves_manual.push((b_bb3, bishop_attacks(&b_bb3)));
+    let b_bb4 = utils::square_to_bb("c2").unwrap();
+    psl_moves_manual.push((b_bb4, bishop_attacks(&b_bb4)));
+    
+    let r_bb3 = utils::square_to_bb("a1").unwrap();
+    psl_moves_manual.push((r_bb3, rook_attacks(&r_bb3)));
+    let r_bb4 = utils::square_to_bb("a2").unwrap();
+    psl_moves_manual.push((r_bb4, rook_attacks(&r_bb4)));
+    
+    let q_bb3 = utils::square_to_bb("d1").unwrap();
+    psl_moves_manual.push((q_bb3, queen_attacks(&q_bb3)));
+    let q_bb4 = utils::square_to_bb("d2").unwrap();
+    psl_moves_manual.push((q_bb4, queen_attacks(&q_bb4)));
+
+    let k_bb2 = utils::square_to_bb("e1").unwrap();
+    psl_moves_manual.push((k_bb2, king_attacks(&k_bb2)));
+    
+    assert_eq!(psl_moves, psl_moves_manual);
+}
