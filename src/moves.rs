@@ -50,7 +50,6 @@ pub fn bishop_attacks(square: &u64) -> u64 {
     let mut bishop_attacks: u64 = 0;
     
     let square_name = utils::bb_to_square(&square).unwrap();
-    println!("bishop on square {}", square_name);
     let file = (square_name.chars().nth(0).unwrap() as u8) - b'a' + 1;
     let rank = (square_name.chars().nth(1).unwrap() as u8) - b'0';
 
@@ -119,7 +118,29 @@ pub fn queen_attacks(square: &u64) -> u64 {
 }
 
 pub fn king_attacks(square: &u64) -> u64 {
-    todo!("implement");
+    let mut king_attacks: u64 = 0;
+
+    let square_name = utils::bb_to_square(&square).unwrap();
+    let file = square_name.chars().nth(0).unwrap();
+    let rank = square_name.chars().nth(1).unwrap();
+
+    // using 0 to 2 instead of -1 to 1 to avoid i8/u8 type conversions. adjust by -1.
+    for fv in 0..=2 {
+        for rv in 0..=2 {
+            let sq_file = ((file as u8) + (fv as u8) - 1) as char;
+            let sq_rank = ((rank as u8) + (rv as u8) - 1) as char;
+
+            if utils::FILES.contains(&sq_file) && utils::RANKS.contains(&sq_rank) {
+                let mut sq_name = String::with_capacity(2);
+                sq_name.push(sq_file);
+                sq_name.push(sq_rank);
+
+                king_attacks = king_attacks | utils::square_to_bb(&sq_name).unwrap();
+            }
+        }
+    }
+    king_attacks = king_attacks ^ square;
+    king_attacks
 }
 
 pub fn find_pseudolegal_moves(board: &board::ChessBoard) -> Vec<(u64, u64)> {
@@ -292,4 +313,28 @@ fn test_queen_attacks() {
     let square5 = utils::square_to_bb("d4").unwrap();
     let sq5_queen_attacks = queen_attacks(&square5);
     assert_eq!(sq5_queen_attacks, (0x08080808F7080808 | 0x8041221400142241));
+    }
+
+#[test]
+fn test_king_attacks() {
+    // a1
+    let square1 = utils::square_to_bb("a1").unwrap();
+    let sq1_king_attacks = king_attacks(&square1);
+    assert_eq!(sq1_king_attacks, (0x0000000000000302));
+    // a8
+    let square2 = utils::square_to_bb("a8").unwrap();
+    let sq2_king_attacks = king_attacks(&square2);
+    assert_eq!(sq2_king_attacks, (0x0203000000000000));
+    // h1
+    let square3 = utils::square_to_bb("h1").unwrap();
+    let sq3_king_attacks = king_attacks(&square3);
+    assert_eq!(sq3_king_attacks, (0x000000000000C040));
+    // h8
+    let square4 = utils::square_to_bb("h8").unwrap();
+    let sq4_king_attacks = king_attacks(&square4);
+    assert_eq!(sq4_king_attacks, (0x40C0000000000000));
+    // d4
+    let square5 = utils::square_to_bb("d4").unwrap();
+    let sq5_king_attacks = king_attacks(&square5);
+    assert_eq!(sq5_king_attacks, (0x0000001C141C0000));
     }

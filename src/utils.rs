@@ -159,8 +159,8 @@ pub fn bb_to_square(bitboard: &u64) -> Result<String, String> {
     }
 }
 
-const FILES: [char; 8] = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
-const RANKS: [char; 8] = ['1', '2', '3', '4', '5', '6', '7', '8'];
+pub const FILES: [char; 8] = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+pub const RANKS: [char; 8] = ['1', '2', '3', '4', '5', '6', '7', '8'];
 
 pub fn square_to_bb(square: &str) -> Result<u64, String> {
     if square.chars().count() != 2 {
