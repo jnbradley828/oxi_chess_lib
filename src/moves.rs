@@ -112,7 +112,10 @@ pub fn rook_attacks(square: &u64) -> u64 {
 }
 
 pub fn queen_attacks(square: &u64) -> u64 {
-    todo!("implement");
+    let mut queen_attacks: u64 = 0;
+    queen_attacks = queen_attacks | rook_attacks(square);
+    queen_attacks = queen_attacks | bishop_attacks(square);
+    queen_attacks
 }
 
 pub fn king_attacks(square: &u64) -> u64 {
@@ -266,3 +269,27 @@ fn test_rook_attacks() {
     let sq5_rook_attacks = rook_attacks(&square5);
     assert_eq!(sq5_rook_attacks, 0x08080808F7080808);
 }
+
+#[test]
+fn test_queen_attacks() {
+    // a1
+    let square1 = utils::square_to_bb("a1").unwrap();
+    let sq1_queen_attacks = queen_attacks(&square1);
+    assert_eq!(sq1_queen_attacks, (0x01010101010101FE | 0x8040201008040200));
+    // a8
+    let square2 = utils::square_to_bb("a8").unwrap();
+    let sq2_queen_attacks = queen_attacks(&square2);
+    assert_eq!(sq2_queen_attacks, (0xFE01010101010101 | 0x0002040810204080));
+    // h1
+    let square3 = utils::square_to_bb("h1").unwrap();
+    let sq3_queen_attacks = queen_attacks(&square3);
+    assert_eq!(sq3_queen_attacks, (0x808080808080807F | 0x0102040810204000));
+    // h8
+    let square4 = utils::square_to_bb("h8").unwrap();
+    let sq4_queen_attacks = queen_attacks(&square4);
+    assert_eq!(sq4_queen_attacks, (0x7F80808080808080 | 0x0040201008040201));
+    // d4
+    let square5 = utils::square_to_bb("d4").unwrap();
+    let sq5_queen_attacks = queen_attacks(&square5);
+    assert_eq!(sq5_queen_attacks, (0x08080808F7080808 | 0x8041221400142241));
+    }
