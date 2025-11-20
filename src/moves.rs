@@ -4,7 +4,7 @@ use crate::utils;
 pub const A_FILE: u64 = 0x0101010101010101;
 pub const H_FILE: u64 = 0x8080808080808080;
 
-pub fn pawn_attacks(color: &bool, square: &u64) -> u64 {
+pub fn pawn_attacks(color: &bool, square: &u64, board: &board::ChessBoard) -> u64 {
     let mut pawn_attacks: u64 = 0;
     if *color {
         pawn_attacks = pawn_attacks | ((square & !A_FILE) << 7);
@@ -12,6 +12,13 @@ pub fn pawn_attacks(color: &bool, square: &u64) -> u64 {
     } else {
         pawn_attacks = pawn_attacks | ((square & !A_FILE) >> 9);
         pawn_attacks = pawn_attacks | ((square & !H_FILE) >> 7);
+    }
+
+    // prune pawn_attacks if that square is taken by a same color piece.
+    if *color {
+        pawn_attacks = pawn_attacks & !(board.white_pieces);
+    } else {
+        pawn_attacks = pawn_attacks & !(board.black_pieces);
     }
     pawn_attacks
 }
@@ -142,11 +149,11 @@ pub fn king_attacks(square: &u64) -> u64 {
     king_attacks
 }
 
-pub fn find_pseudolegal_moves(board: &board::ChessBoard) -> Vec<(u64, u64)> {
+pub fn board_attacks(board: &board::ChessBoard) -> Vec<(u64, u64)> {
     // The idea is to return a vector containing type (u64, u64).
     // The first u64 denotes just one bit that shows the location of the from-piece.
     // The second u64 is a mask where every square the from-piece attacks has bit value 1.
-    let mut psm_list: Vec<(u64, u64)> = Vec::new();
+    let mut attack_list: Vec<(u64, u64)> = Vec::new();
 
     let mut color_mask: u64 = 0;
     if board.side_to_move {
@@ -162,7 +169,7 @@ pub fn find_pseudolegal_moves(board: &board::ChessBoard) -> Vec<(u64, u64)> {
             let from_square: u64 = 1 << colored_bb.trailing_zeros();
 
             let attack_squares: u64 = match piece_bb.0 {
-                "pawns" => pawn_attacks(&board.side_to_move, &from_square),
+                "pawns" => pawn_attacks(&board.side_to_move, &from_square, board),
                 "knights" => knight_attacks(&from_square),
                 "bishops" => bishop_attacks(&from_square),
                 "rooks" => rook_attacks(&from_square),
@@ -172,43 +179,56 @@ pub fn find_pseudolegal_moves(board: &board::ChessBoard) -> Vec<(u64, u64)> {
             };
 
             colored_bb = colored_bb & !(1<<colored_bb.trailing_zeros()); // erase current from_piece from colored_bb.
-            psm_list.push((from_square, attack_squares));
+            attack_list.push((from_square, attack_squares));
         }
     }
-    psm_list
+    attack_list
 }
 
 #[test]
 fn test_pawn_attacks() {
+    let empty_board = board::ChessBoard::empty();
+    
     // white pawn on b5
     let square1: u64 = utils::square_to_bb("b5").unwrap(); // b5 bit = 1.
-    let square1_pawn_attacks = pawn_attacks(&true, &square1);
+    let square1_pawn_attacks = pawn_attacks(&true, &square1, &empty_board);
     assert_eq!(square1_pawn_attacks, 0x0000050000000000); // a6 and c6 bit = 1.
 
     // black pawn on b5
     let square2: u64 = utils::square_to_bb("b5").unwrap(); // b5 bit = 1.
-    let square2_pawn_attacks = pawn_attacks(&false, &square2);
+    let square2_pawn_attacks = pawn_attacks(&false, &square2, &empty_board);
     assert_eq!(square2_pawn_attacks, 0x0000000005000000); // a4 and c4 bit = 1.
 
     // white pawn on a1
     let square3: u64 = utils::square_to_bb("a1").unwrap(); // a1 bit = 1.
-    let square3_pawn_attacks = pawn_attacks(&true, &square3);
+    let square3_pawn_attacks = pawn_attacks(&true, &square3, &empty_board);
     assert_eq!(square3_pawn_attacks, 0x0000000000000200); // b2 bit = 1.
 
     // black pawn on a8
     let square4: u64 = utils::square_to_bb("a8").unwrap(); // a8 bit = 1.
-    let square4_pawn_attacks = pawn_attacks(&false, &square4);
+    let square4_pawn_attacks = pawn_attacks(&false, &square4, &empty_board);
     assert_eq!(square4_pawn_attacks, 0x0002000000000000); // b7 bit = 1.
 
     // white pawn on h1
     let square5: u64 = utils::square_to_bb("h1").unwrap(); // h1 bit = 1.
-    let square5_pawn_attacks = pawn_attacks(&true, &square5);
+    let square5_pawn_attacks = pawn_attacks(&true, &square5, &empty_board);
     assert_eq!(square5_pawn_attacks, 0x0000000000004000); // g2 bit = 1.
 
     // black pawn on h8
     let square6: u64 = utils::square_to_bb("h8").unwrap(); // h8 bit = 1.
-    let square6_pawn_attacks = pawn_attacks(&false, &square6);
+    let square6_pawn_attacks = pawn_attacks(&false, &square6, &empty_board);
     assert_eq!(square6_pawn_attacks, 0x0040000000000000); // g7 bit = 1.
+
+    let non_empty_board = board::ChessBoard::initialize_from_fen("k7/1p6/b7/8/8/B7/1P6/K7 b KQkq - 0 1").unwrap();
+    
+    // white pawn blocked by its own piece.
+    let square7: u64 = utils::square_to_bb("b2").unwrap();
+    let square7_pawn_attacks = pawn_attacks(&true, &square7, &non_empty_board);
+    assert_eq!(square7_pawn_attacks, 0x0000000000040000);
+    // black pawn blocked by its own piece.
+    let square8: u64 = utils::square_to_bb("b7").unwrap();
+    let square8_pawn_attacks = pawn_attacks(&false, &square8, &non_empty_board);
+    assert_eq!(square8_pawn_attacks, 0x0000040000000000);
 }
 
 #[test]
@@ -368,17 +388,17 @@ fn test_king_attacks() {
     }
 
 #[test]
-fn test_find_pseudolegal_moves() {
+fn test_board_attacks() {
     // 2 pieces of each type (except king), black to move
-    let board1 = board::ChessBoard::initialize_from_fen("rnbqkp2/rnbq1p2/8/8/8/8/8/K7 b KQkq - 0 1").unwrap();
-    let psl_moves = find_pseudolegal_moves(&board1);
+    let board1 = board::ChessBoard::initialize_from_fen("rnbq1p2/rnbq1pk1/8/8/8/8/8/K7 b KQkq - 0 1").unwrap();
+    let psl_moves = board_attacks(&board1);
 
     let mut psl_moves_manual: Vec<(u64, u64)> = Vec::new();
 
     let p_bb1 = utils::square_to_bb("f7").unwrap();
-    psl_moves_manual.push((p_bb1, pawn_attacks(&false, &p_bb1)));
+    psl_moves_manual.push((p_bb1, pawn_attacks(&false, &p_bb1, &board1)));
     let p_bb2 = utils::square_to_bb("f8").unwrap();
-    psl_moves_manual.push((p_bb2, pawn_attacks(&false, &p_bb2)));
+    psl_moves_manual.push((p_bb2, pawn_attacks(&false, &p_bb2, &board1)));
 
     let n_bb1 = utils::square_to_bb("b7").unwrap();
     psl_moves_manual.push((n_bb1, knight_attacks(&n_bb1)));
@@ -400,21 +420,21 @@ fn test_find_pseudolegal_moves() {
     let q_bb2 = utils::square_to_bb("d8").unwrap();
     psl_moves_manual.push((q_bb2, queen_attacks(&q_bb2)));
 
-    let k_bb1 = utils::square_to_bb("e8").unwrap();
+    let k_bb1 = utils::square_to_bb("g7").unwrap();
     psl_moves_manual.push((k_bb1, king_attacks(&k_bb1)));
     
     assert_eq!(psl_moves, psl_moves_manual);
 
     // 2 pieces of each type (except king), white to move
-    let board2 = board::ChessBoard::initialize_from_fen("k7/8/8/8/8/8/RNBQ1P2/RNBQKP2 w KQkq - 0 1").unwrap();
-    let psl_moves = find_pseudolegal_moves(&board2);
+    let board2 = board::ChessBoard::initialize_from_fen("k7/8/8/8/8/8/RNBQ1PK1/RNBQ1P2 w KQkq - 0 1").unwrap();
+    let psl_moves = board_attacks(&board2);
 
     let mut psl_moves_manual: Vec<(u64, u64)> = Vec::new();
     
     let p_bb3 = utils::square_to_bb("f1").unwrap();
-    psl_moves_manual.push((p_bb3, pawn_attacks(&true, &p_bb3)));
+    psl_moves_manual.push((p_bb3, pawn_attacks(&true, &p_bb3, &board2)));
     let p_bb4 = utils::square_to_bb("f2").unwrap();
-    psl_moves_manual.push((p_bb4, pawn_attacks(&true, &p_bb4)));
+    psl_moves_manual.push((p_bb4, pawn_attacks(&true, &p_bb4, &board2)));
 
     let n_bb3 = utils::square_to_bb("b1").unwrap();
     psl_moves_manual.push((n_bb3, knight_attacks(&n_bb3)));
@@ -436,7 +456,7 @@ fn test_find_pseudolegal_moves() {
     let q_bb4 = utils::square_to_bb("d2").unwrap();
     psl_moves_manual.push((q_bb4, queen_attacks(&q_bb4)));
 
-    let k_bb2 = utils::square_to_bb("e1").unwrap();
+    let k_bb2 = utils::square_to_bb("g2").unwrap();
     psl_moves_manual.push((k_bb2, king_attacks(&k_bb2)));
     
     assert_eq!(psl_moves, psl_moves_manual);
