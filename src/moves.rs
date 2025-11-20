@@ -23,7 +23,7 @@ pub fn pawn_attacks(color: &bool, square: &u64, board: &board::ChessBoard) -> u6
     pawn_attacks
 }
 
-pub fn knight_attacks(square: &u64) -> u64 {
+pub fn knight_attacks(color: &bool, square: &u64, board: &board::ChessBoard) -> u64 {
     // take the piece, use rank/file data and if statements, use bitwise-or with u64 = 0 to add attack squares.
     let mut knight_attacks: u64 = 0;
     if !((utils::on_rank_7(square) || utils::on_rank_8(square)) || utils::on_a_file(square)) {
@@ -49,6 +49,13 @@ pub fn knight_attacks(square: &u64) -> u64 {
     }
     if !(utils::on_rank_1(square) || (utils::on_g_file(square) || utils::on_h_file(square))) {
         knight_attacks = knight_attacks | (square >> 6);
+    }
+
+    // prune knight_attacks if that square is taken by a same color piece.
+    if *color {
+        knight_attacks = knight_attacks & !(board.white_pieces);
+    } else {
+        knight_attacks = knight_attacks & !(board.black_pieces);
     }
     knight_attacks
 }
@@ -170,7 +177,7 @@ pub fn board_attacks(board: &board::ChessBoard) -> Vec<(u64, u64)> {
 
             let attack_squares: u64 = match piece_bb.0 {
                 "pawns" => pawn_attacks(&board.side_to_move, &from_square, board),
-                "knights" => knight_attacks(&from_square),
+                "knights" => knight_attacks(&board.side_to_move,&from_square, board),
                 "bishops" => bishop_attacks(&from_square),
                 "rooks" => rook_attacks(&from_square),
                 "queens" => queen_attacks(&from_square),
@@ -234,61 +241,75 @@ fn test_pawn_attacks() {
 #[test]
 fn test_knight_attacks() {
     // test squares: a1, a2, b1, b2, g1, g2, h1, h2, a7, a8, b7, b8, g7, g8, h7, h8, d4
+    let empty_board = board::ChessBoard::empty();
+    
     // a1:
     let square1 = utils::square_to_bb("a1").unwrap();
-    let sq1_knight_attacks = knight_attacks(&square1);
+    let sq1_knight_attacks = knight_attacks(&true, &square1, &empty_board);
     assert_eq!(sq1_knight_attacks, 0x0000000000020400);
 
 
     // a2:
     let square2 = utils::square_to_bb("a2").unwrap();
-    let sq2_knight_attacks = knight_attacks(&square2);
+    let sq2_knight_attacks = knight_attacks(&true,&square2, &empty_board);
     assert_eq!(sq2_knight_attacks, 0x0000000002040004);
 
     // b1:
     let square3 = utils::square_to_bb("b1").unwrap();
-    let sq3_knight_attacks = knight_attacks(&square3);
+    let sq3_knight_attacks = knight_attacks(&true,&square3, &empty_board);
     assert_eq!(sq3_knight_attacks, 0x0000000000050800);
     
     // b2:
     let square4 = utils::square_to_bb("b2").unwrap();
-    let sq4_knight_attacks = knight_attacks(&square4);
+    let sq4_knight_attacks = knight_attacks(&true,&square4, &empty_board);
     assert_eq!(sq4_knight_attacks, 0x0000000005080008);
 
     // g1:
     let square5 = utils::square_to_bb("g1").unwrap();
-    let sq5_knight_attacks = knight_attacks(&square5);
+    let sq5_knight_attacks = knight_attacks(&true,&square5, &empty_board);
     assert_eq!(sq5_knight_attacks, 0x0000000000A01000);
     
     // g2:
     let square6 = utils::square_to_bb("g2").unwrap();
-    let sq6_knight_attacks = knight_attacks(&square6);
+    let sq6_knight_attacks = knight_attacks(&true,&square6, &empty_board);
     assert_eq!(sq6_knight_attacks, 0x00000000A0100010);
 
     // h1:
     let square7 = utils::square_to_bb("h1").unwrap();
-    let sq7_knight_attacks = knight_attacks(&square7);
+    let sq7_knight_attacks = knight_attacks(&true,&square7, &empty_board);
     assert_eq!(sq7_knight_attacks, 0x0000000000402000);
 
     // h2:
     let square8 = utils::square_to_bb("h2").unwrap();
-    let sq8_knight_attacks = knight_attacks(&square8);
+    let sq8_knight_attacks = knight_attacks(&true,&square8, &empty_board);
     assert_eq!(sq8_knight_attacks, 0x0000000040200020);
 
     // a7:
     let square9 = utils::square_to_bb("a7").unwrap();
-    let sq9_knight_attacks = knight_attacks(&square9);
+    let sq9_knight_attacks = knight_attacks(&true,&square9, &empty_board);
     assert_eq!(sq9_knight_attacks, 0x0400040200000000);
     
     // a8:
     let square10 = utils::square_to_bb("a8").unwrap();
-    let sq10_knight_attacks = knight_attacks(&square10);
+    let sq10_knight_attacks = knight_attacks(&true,&square10, &empty_board);
     assert_eq!(sq10_knight_attacks, 0x0004020000000000);
 
     // b7:
     let square11 = utils::square_to_bb("b7").unwrap();
-    let sq11_knight_attacks = knight_attacks(&square11);
+    let sq11_knight_attacks = knight_attacks(&true,&square11, &empty_board);
     assert_eq!(sq11_knight_attacks, 0x0800080500000000);
+
+    let starting_board = board::ChessBoard::initialize();
+
+    // b1 from starting position (exclude d2)
+    let square12 = utils::square_to_bb("b1").unwrap();
+    let sq12_knight_attacks = knight_attacks(&true, &square12, &starting_board);
+    assert_eq!(sq12_knight_attacks, 0x0000000000050000);
+
+    // b8 from starting position (exclude d7)
+    let square13 = utils::square_to_bb("b8").unwrap();
+    let sq13_knight_attacks = knight_attacks(&false, &square13, &starting_board);
+    assert_eq!(sq13_knight_attacks, 0x0000050000000000);
 }
 
 #[test]
@@ -401,9 +422,9 @@ fn test_board_attacks() {
     psl_moves_manual.push((p_bb2, pawn_attacks(&false, &p_bb2, &board1)));
 
     let n_bb1 = utils::square_to_bb("b7").unwrap();
-    psl_moves_manual.push((n_bb1, knight_attacks(&n_bb1)));
+    psl_moves_manual.push((n_bb1, knight_attacks(&false, &n_bb1, &board1)));
     let n_bb2 = utils::square_to_bb("b8").unwrap();
-    psl_moves_manual.push((n_bb2, knight_attacks(&n_bb2)));
+    psl_moves_manual.push((n_bb2, knight_attacks(&false, &n_bb2, &board1)));
     
     let b_bb1 = utils::square_to_bb("c7").unwrap();
     psl_moves_manual.push((b_bb1, bishop_attacks(&b_bb1)));
@@ -437,9 +458,9 @@ fn test_board_attacks() {
     psl_moves_manual.push((p_bb4, pawn_attacks(&true, &p_bb4, &board2)));
 
     let n_bb3 = utils::square_to_bb("b1").unwrap();
-    psl_moves_manual.push((n_bb3, knight_attacks(&n_bb3)));
+    psl_moves_manual.push((n_bb3, knight_attacks(&true,&n_bb3, &board2)));
     let n_bb4 = utils::square_to_bb("b2").unwrap();
-    psl_moves_manual.push((n_bb4, knight_attacks(&n_bb4)));
+    psl_moves_manual.push((n_bb4, knight_attacks(&true,&n_bb4, &board2)));
     
     let b_bb3 = utils::square_to_bb("c1").unwrap();
     psl_moves_manual.push((b_bb3, bishop_attacks(&b_bb3)));
