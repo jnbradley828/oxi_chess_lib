@@ -1,5 +1,5 @@
 // Ideas for this file: display game board in text, display legal moves, display move list so far, display FEN, etc.
- 
+
 pub fn on_a_file(piece_location: &u64) -> bool {
     // if more than one bit = 1: raise error.
 
@@ -180,29 +180,48 @@ pub fn square_to_bb(square: &str) -> Result<u64, String> {
 
     let square: u64 = 1 << modifier;
     Ok(square)
-    
 }
 
 pub fn print_board_binary(bitboard: &u64) {
     // prints a binary mapping of a bitboard (no piece type information) for debugging and development purposes.
     let binary_bb = format!("{:064b}", bitboard);
     for i in 0..8 {
-        let line_mirrored = &binary_bb[(i*8)..((i+1)*8)];
+        let line_mirrored = &binary_bb[(i * 8)..((i + 1) * 8)];
         let line: String = line_mirrored.chars().rev().collect();
         println!("{}", line);
     }
 }
 
-// Unit Tests
+pub fn squares_above(square: &u64) -> u64 {
+    // prints mask of all squares above specified square
+    let cutoff = ((square.trailing_zeros() % 8) + 1) * 8;
+    let mask: u64 = (u64::MAX).checked_shl(cutoff).unwrap_or(0);
+    mask
+}
 
+pub fn squares_below(square: &u64) -> u64 {
+    // prints mask of all squares below specified square
+    let cutoff = ((square.leading_zeros() % 8) + 1) * 8;
+    let mask: u64 = (u64::MAX).checked_shr(cutoff).unwrap_or(0);
+    mask
+} // Unit Tests
 
-const A_SQUARES: [u64; 8] = [0x0000000000000001, 0x0000000000000100, 0x0000000000010000, 0x0000000001000000, 0x0000000100000000, 0x0000010000000000, 0x0001000000000000, 0x0100000000000000]; 
+const A_SQUARES: [u64; 8] = [
+    0x0000000000000001,
+    0x0000000000000100,
+    0x0000000000010000,
+    0x0000000001000000,
+    0x0000000100000000,
+    0x0000010000000000,
+    0x0001000000000000,
+    0x0100000000000000,
+];
 #[test]
 fn test_on_a_file() {
     for i in 0..64 {
         let square: u64 = 1 << i;
         if A_SQUARES.contains(&square) {
-             assert_eq!(on_a_file(&square), true);
+            assert_eq!(on_a_file(&square), true);
         } else {
             assert_eq!(on_a_file(&square), false);
         }
@@ -216,7 +235,7 @@ fn test_on_b_file() {
     for i in 0..64 {
         let square: u64 = 1 << i;
         if b_squares.contains(&square) {
-             assert_eq!(on_b_file(&square), true);
+            assert_eq!(on_b_file(&square), true);
         } else {
             assert_eq!(on_b_file(&square), false);
         }
@@ -230,7 +249,7 @@ fn test_on_c_file() {
     for i in 0..64 {
         let square: u64 = 1 << i;
         if c_squares.contains(&square) {
-             assert_eq!(on_c_file(&square), true);
+            assert_eq!(on_c_file(&square), true);
         } else {
             assert_eq!(on_c_file(&square), false);
         }
@@ -244,7 +263,7 @@ fn test_on_d_file() {
     for i in 0..64 {
         let square: u64 = 1 << i;
         if d_squares.contains(&square) {
-             assert_eq!(on_d_file(&square), true);
+            assert_eq!(on_d_file(&square), true);
         } else {
             assert_eq!(on_d_file(&square), false);
         }
@@ -258,7 +277,7 @@ fn test_on_e_file() {
     for i in 0..64 {
         let square: u64 = 1 << i;
         if e_squares.contains(&square) {
-             assert_eq!(on_e_file(&square), true);
+            assert_eq!(on_e_file(&square), true);
         } else {
             assert_eq!(on_e_file(&square), false);
         }
@@ -272,7 +291,7 @@ fn test_on_f_file() {
     for i in 0..64 {
         let square: u64 = 1 << i;
         if f_squares.contains(&square) {
-             assert_eq!(on_f_file(&square), true);
+            assert_eq!(on_f_file(&square), true);
         } else {
             assert_eq!(on_f_file(&square), false);
         }
@@ -286,7 +305,7 @@ fn test_on_g_file() {
     for i in 0..64 {
         let square: u64 = 1 << i;
         if g_squares.contains(&square) {
-             assert_eq!(on_g_file(&square), true);
+            assert_eq!(on_g_file(&square), true);
         } else {
             assert_eq!(on_g_file(&square), false);
         }
@@ -300,7 +319,7 @@ fn test_on_h_file() {
     for i in 0..64 {
         let square: u64 = 1 << i;
         if h_squares.contains(&square) {
-             assert_eq!(on_h_file(&square), true);
+            assert_eq!(on_h_file(&square), true);
         } else {
             assert_eq!(on_h_file(&square), false);
         }
@@ -419,7 +438,10 @@ fn test_bb_to_square() {
     assert_eq!(bb_to_square(&board4).unwrap(), "c7");
     // invalid: too many squares
     let board5: u64 = 3;
-    assert_eq!(bb_to_square(&board5), Err("Invalid bitboard: more than one piece on the board.".to_string()));
+    assert_eq!(
+        bb_to_square(&board5),
+        Err("Invalid bitboard: more than one piece on the board.".to_string())
+    );
 }
 
 #[test]
@@ -438,11 +460,45 @@ fn test_square_to_bb() {
     assert_eq!(square_to_bb(square4).unwrap(), 0x0004000000000000);
     // invalid: file out of range
     let square5: &str = "i1";
-    assert_eq!(square_to_bb(square5), Err("Invalid square: invalid file or rank.".to_string()));
+    assert_eq!(
+        square_to_bb(square5),
+        Err("Invalid square: invalid file or rank.".to_string())
+    );
     // invalid: rank out of range
     let square6: &str = "a9";
-    assert_eq!(square_to_bb(square6), Err("Invalid square: invalid file or rank.".to_string()));
+    assert_eq!(
+        square_to_bb(square6),
+        Err("Invalid square: invalid file or rank.".to_string())
+    );
     // invalid: too many chars
     let square7: &str = "a11";
-    assert_eq!(square_to_bb(square7), Err("Invalid square: too many characters.".to_string()));
+    assert_eq!(
+        square_to_bb(square7),
+        Err("Invalid square: too many characters.".to_string())
+    );
+}
+
+#[test]
+fn test_squares_above() {
+    // a1
+    let square1: &str = "a1";
+    let sq1: u64 = square_to_bb(square1).unwrap();
+    assert_eq!(squares_above(&sq1), 0xFFFFFFFFFFFFFF00);
+    // g7
+    let square2: &str = "g7";
+    let sq2: u64 = square_to_bb(square2).unwrap();
+    println!("{}", sq2);
+    assert_eq!(squares_above(&sq2), 0xFF00000000000000);
+}
+
+#[test]
+fn test_squares_below() {
+    // a1
+    let square1: &str = "a1";
+    let sq1: u64 = square_to_bb(square1).unwrap();
+    assert_eq!(squares_below(&sq1), 0);
+    // g7
+    let square2: &str = "g7";
+    let sq2: u64 = square_to_bb(square2).unwrap();
+    assert_eq!(squares_below(&sq2), 0x0000FFFFFFFFFFFF);
 }
