@@ -204,7 +204,45 @@ pub fn squares_below(square: &u64) -> u64 {
     let cutoff = ((square.leading_zeros() % 8) + 1) * 8;
     let mask: u64 = (u64::MAX).checked_shr(cutoff).unwrap_or(0);
     mask
-} // Unit Tests
+}
+
+pub fn squares_left(square: &u64) -> u64 {
+    if square.trailing_zeros() % 8 == 0 {
+        0
+    } else {
+        let mut mask: u64 = 0;
+        let file_template: u64 = 0x8080808080808080;
+
+        let mut file_mod: u64 = ((square.trailing_zeros() as u64) % 8) - 1;
+
+        while file_mod < u64::MAX {
+            mask = mask ^ (file_template >> file_mod);
+            file_mod = file_mod.wrapping_sub(1);
+        }
+
+        mask
+    }
+}
+
+pub fn squares_right(square: &u64) -> u64 {
+    if square.trailing_zeros() % 8 == 8 {
+        0
+    } else {
+        let mut mask: u64 = 0;
+        let file_template: u64 = 0x0101010101010101;
+
+        let mut file_mod: u64 = ((square.trailing_zeros() as u64) % 8) + 1;
+
+        while file_mod < 8 {
+            mask = mask ^ (file_template << file_mod);
+            file_mod += 1;
+        }
+
+        mask
+    }
+}
+
+// Unit Tests
 
 const A_SQUARES: [u64; 8] = [
     0x0000000000000001,
@@ -501,4 +539,28 @@ fn test_squares_below() {
     let square2: &str = "g7";
     let sq2: u64 = square_to_bb(square2).unwrap();
     assert_eq!(squares_below(&sq2), 0x0000FFFFFFFFFFFF);
+}
+
+#[test]
+fn test_squares_left() {
+    // a1
+    let square1: &str = "a1";
+    let sq1: u64 = square_to_bb(square1).unwrap();
+    assert_eq!(squares_left(&sq1), 0);
+    // g7
+    let square2: &str = "g7";
+    let sq2: u64 = square_to_bb(square2).unwrap();
+    assert_eq!(squares_left(&sq2), 0xFCFCFCFCFCFCFCFC);
+}
+
+#[test]
+fn test_squares_right() {
+    // a1
+    let square1: &str = "a1";
+    let sq1: u64 = square_to_bb(square1).unwrap();
+    assert_eq!(squares_right(&sq1), 0xFEFEFEFEFEFEFEFE);
+    // g7
+    let square2: &str = "g7";
+    let sq2: u64 = square_to_bb(square2).unwrap();
+    assert_eq!(squares_right(&sq2), 0x8080808080808080);
 }
