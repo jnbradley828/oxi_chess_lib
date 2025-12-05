@@ -1,5 +1,7 @@
 // Ideas for this file: display game board in text, display legal moves, display move list so far, display FEN, etc.
 
+use crate::board;
+
 pub fn on_a_file(piece_location: &u64) -> bool {
     // if more than one bit = 1: raise error.
 
@@ -211,12 +213,12 @@ pub fn squares_left(square: &u64) -> u64 {
         0
     } else {
         let mut mask: u64 = 0;
-        let file_template: u64 = 0x8080808080808080;
+        let file_template: u64 = 0x0101010101010101;
 
         let mut file_mod: u64 = ((square.trailing_zeros() as u64) % 8) - 1;
 
         while file_mod < u64::MAX {
-            mask = mask ^ (file_template >> file_mod);
+            mask = mask | (file_template << file_mod);
             file_mod = file_mod.wrapping_sub(1);
         }
 
@@ -234,12 +236,16 @@ pub fn squares_right(square: &u64) -> u64 {
         let mut file_mod: u64 = ((square.trailing_zeros() as u64) % 8) + 1;
 
         while file_mod < 8 {
-            mask = mask ^ (file_template << file_mod);
+            mask = mask | (file_template << file_mod);
             file_mod += 1;
         }
 
         mask
     }
+}
+
+pub fn squares_of_distance(square: &u64, distance: &u64) -> u64 {
+    todo!("implement")
 }
 
 // Unit Tests
@@ -525,7 +531,6 @@ fn test_squares_above() {
     // g7
     let square2: &str = "g7";
     let sq2: u64 = square_to_bb(square2).unwrap();
-    println!("{}", sq2);
     assert_eq!(squares_above(&sq2), 0xFF00000000000000);
 }
 
@@ -550,7 +555,7 @@ fn test_squares_left() {
     // g7
     let square2: &str = "g7";
     let sq2: u64 = square_to_bb(square2).unwrap();
-    assert_eq!(squares_left(&sq2), 0xFCFCFCFCFCFCFCFC);
+    assert_eq!(squares_left(&sq2), 0x3F3F3F3F3F3F3F3F);
 }
 
 #[test]
