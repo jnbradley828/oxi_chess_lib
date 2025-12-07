@@ -106,7 +106,6 @@ const fn generate_knight_attacks() -> [u64; 64] {
 pub const KNIGHT_ATTACKS: [u64; 64] = generate_knight_attacks();
 
 pub fn knight_attacks(color: &bool, square: &u64, board: &board::ChessBoard) -> u64 {
-    // prune knight_attacks if that square is taken by a same color piece.
     let mut knight_attacks = KNIGHT_ATTACKS[square.trailing_zeros() as usize];
 
     if *color {
@@ -187,29 +186,60 @@ pub fn queen_attacks(square: &u64) -> u64 {
     queen_attacks
 }
 
-pub fn king_attacks(square: &u64) -> u64 {
+pub const fn generate_one_king_attacks(square: u64) -> u64 {
     let mut king_attacks: u64 = 0;
 
-    let square_name = utils::bb_to_square(&square).unwrap();
-    let file = square_name.chars().nth(0).unwrap();
-    let rank = square_name.chars().nth(1).unwrap();
-
-    // using 0 to 2 instead of -1 to 1 to avoid i8/u8 type conversions. adjust by -1.
-    for fv in 0..=2 {
-        for rv in 0..=2 {
-            let sq_file = ((file as u8) + (fv as u8) - 1) as char;
-            let sq_rank = ((rank as u8) + (rv as u8) - 1) as char;
-
-            if utils::FILES.contains(&sq_file) && utils::RANKS.contains(&sq_rank) {
-                let mut sq_name = String::with_capacity(2);
-                sq_name.push(sq_file);
-                sq_name.push(sq_rank);
-
-                king_attacks = king_attacks | utils::square_to_bb(&sq_name).unwrap();
-            }
+    if !utils::on_a_file(square) {
+        king_attacks |= square >> 1;
+        if !utils::on_rank_8(square) {
+            king_attacks |= square << 7;
+        }
+        if !utils::on_rank_1(square) {
+            king_attacks != square >> 9;
         }
     }
-    king_attacks = king_attacks ^ square;
+    if !utils::on_h_file(square) {
+        king_attacks |= square << 1;
+        if !utils::on_rank_8(square) {
+            king_attacks |= square << 9;
+        }
+        if !utils::on_rank_1(square) {
+            king_attacks |= square >> 7;
+        }
+    }
+    if !utils::on_rank_1(square) {
+        king_attacks |= square >> 8;
+    }
+    if !utils::on_rank_8(square) {
+        king_attacks |= square << 8;
+    }
+
+    king_attacks
+}
+
+pub const fn generate_king_attacks() -> [u64; 64] {
+    let mut king_attacks = [0u64; 64];
+
+    let mut i = 0;
+    while i < 64 {
+        let i_square: u64 = 1 << i;
+        king_attacks[i] = generate_one_king_attacks(i_square);
+        i += 1;
+    }
+
+    king_attacks
+}
+
+pub const KING_ATTACKS: [u64; 64] = generate_king_attacks();
+
+pub fn king_attacks(color: &bool, square: &u64, board: &board::ChessBoard) -> u64 {
+    let mut king_attacks = KING_ATTACKS[square.trailing_zeros() as usize];
+
+    if *color {
+        king_attacks = king_attacks & !(board.white_pieces);
+    } else {
+        king_attacks = king_attacks & !(board.black_pieces);
+    }
     king_attacks
 }
 
@@ -245,7 +275,7 @@ pub fn board_attacks(board: &board::ChessBoard) -> Vec<(u64, u64)> {
                 "bishops" => bishop_attacks(&from_square),
                 "rooks" => rook_attacks(&from_square),
                 "queens" => queen_attacks(&from_square),
-                "kings" => king_attacks(&from_square),
+                "kings" => king_attacks(&board.side_to_move, &from_square, board),
                 &_ => 0,
             };
 
@@ -450,26 +480,25 @@ fn test_queen_attacks() {
 
 #[test]
 fn test_king_attacks() {
-    // a1
-    let square1 = utils::square_to_bb("a1").unwrap();
-    let sq1_king_attacks = king_attacks(&square1);
-    assert_eq!(sq1_king_attacks, (0x0000000000000302));
-    // a8
-    let square2 = utils::square_to_bb("a8").unwrap();
-    let sq2_king_attacks = king_attacks(&square2);
-    assert_eq!(sq2_king_attacks, (0x0203000000000000));
-    // h1
-    let square3 = utils::square_to_bb("h1").unwrap();
-    let sq3_king_attacks = king_attacks(&square3);
-    assert_eq!(sq3_king_attacks, (0x000000000000C040));
-    // h8
-    let square4 = utils::square_to_bb("h8").unwrap();
-    let sq4_king_attacks = king_attacks(&square4);
-    assert_eq!(sq4_king_attacks, (0x40C0000000000000));
-    // d4
-    let square5 = utils::square_to_bb("d4").unwrap();
-    let sq5_king_attacks = king_attacks(&square5);
-    assert_eq!(sq5_king_attacks, (0x0000001C141C0000));
+    let board1 = board::ChessBoard::initialize();
+    // white king starting position
+    let square1 = utils::square_to_bb("e1").unwrap();
+    let sq1_king_attacks = king_attacks(&true, &square1, &board1);
+    assert_eq!(sq1_king_attacks, 0);
+    // black king starting position
+    let square2 = utils::square_to_bb("e8").unwrap();
+    let sq2_king_attacks = king_attacks(&false, &square2, &board1);
+    assert_eq!(sq2_king_attacks, 0);
+
+    let board2 = board::ChessBoard::empty();
+    // white king a1 empty board
+    let square3 = utils::square_to_bb("a1").unwrap();
+    let sq3_king_attacks = king_attacks(&true, &square3, &board2);
+    assert_eq!(sq3_king_attacks, 0x0000000000000302);
+    // black king a1 empty board
+    let square3 = utils::square_to_bb("a1").unwrap();
+    let sq3_king_attacks = king_attacks(&false, &square3, &board2);
+    assert_eq!(sq3_king_attacks, 0x0000000000000302);
 }
 
 #[test]
@@ -508,7 +537,7 @@ fn test_board_attacks() {
     psl_moves_manual.push((q_bb2, queen_attacks(&q_bb2)));
 
     let k_bb1 = utils::square_to_bb("g7").unwrap();
-    psl_moves_manual.push((k_bb1, king_attacks(&k_bb1)));
+    psl_moves_manual.push((k_bb1, king_attacks(&false, &k_bb1, &board1)));
 
     assert_eq!(psl_moves, psl_moves_manual);
 
@@ -546,7 +575,7 @@ fn test_board_attacks() {
     psl_moves_manual.push((q_bb4, queen_attacks(&q_bb4)));
 
     let k_bb2 = utils::square_to_bb("g2").unwrap();
-    psl_moves_manual.push((k_bb2, king_attacks(&k_bb2)));
+    psl_moves_manual.push((k_bb2, king_attacks(&true, &k_bb2, &board2)));
 
     assert_eq!(psl_moves, psl_moves_manual);
 }
