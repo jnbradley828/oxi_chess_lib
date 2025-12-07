@@ -4,7 +4,7 @@ use crate::utils;
 pub const A_FILE: u64 = 0x0101010101010101;
 pub const H_FILE: u64 = 0x8080808080808080;
 
-const fn generate_pawn_attacks(color: &bool, square: u64) -> u64 {
+const fn generate_one_pawn_attacks(color: &bool, square: u64) -> u64 {
     // generates pawn attack squares for one square. no pruning based on occupied squares.
     let mut pawn_attacks: u64 = 0;
 
@@ -24,7 +24,7 @@ const fn generate_white_pawn_attacks() -> [u64; 64] {
     let mut i = 0;
     while i < 64 {
         let i_square: u64 = 1 << i;
-        white_pawn_attacks[i] = generate_pawn_attacks(&true, i_square);
+        white_pawn_attacks[i] = generate_one_pawn_attacks(&true, i_square);
         i += 1;
     }
 
@@ -36,7 +36,7 @@ const fn generate_black_pawn_attacks() -> [u64; 64] {
     let mut i = 0;
     while i < 64 {
         let i_square: u64 = 1 << i;
-        black_pawn_attacks[i] = generate_pawn_attacks(&false, i_square);
+        black_pawn_attacks[i] = generate_one_pawn_attacks(&false, i_square);
         i += 1;
     }
 
@@ -59,7 +59,7 @@ pub fn pawn_attacks(color: &bool, square: &u64, board: &board::ChessBoard) -> u6
     pawn_attacks
 }
 
-pub fn knight_attacks(color: &bool, square: &u64, board: &board::ChessBoard) -> u64 {
+const fn generate_one_knight_attacks(square: u64) -> u64 {
     // take the piece, use rank/file data and if statements, use bitwise-or with u64 = 0 to add attack squares.
     let mut knight_attacks: u64 = 0;
     if !((utils::on_rank_7(square) || utils::on_rank_8(square)) || utils::on_a_file(square)) {
@@ -87,7 +87,28 @@ pub fn knight_attacks(color: &bool, square: &u64, board: &board::ChessBoard) -> 
         knight_attacks = knight_attacks | (square >> 6);
     }
 
+    knight_attacks
+}
+
+const fn generate_knight_attacks() -> [u64; 64] {
+    let mut knight_attacks = [0u64; 64];
+
+    let mut i = 0;
+    while i < 64 {
+        let i_square: u64 = 1 << i;
+        knight_attacks[i] = generate_one_knight_attacks(i_square);
+        i += 1;
+    }
+
+    knight_attacks
+}
+
+pub const KNIGHT_ATTACKS: [u64; 64] = generate_knight_attacks();
+
+pub fn knight_attacks(color: &bool, square: &u64, board: &board::ChessBoard) -> u64 {
     // prune knight_attacks if that square is taken by a same color piece.
+    let mut knight_attacks = KNIGHT_ATTACKS[square.trailing_zeros() as usize];
+
     if *color {
         knight_attacks = knight_attacks & !(board.white_pieces);
     } else {
