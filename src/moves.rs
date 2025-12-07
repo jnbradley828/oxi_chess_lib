@@ -116,6 +116,118 @@ pub fn knight_attacks(color: &bool, square: &u64, board: &board::ChessBoard) -> 
     knight_attacks
 }
 
+pub const fn generate_north_ray(square: u64) -> u64 {
+    let mut ray: u64 = 0;
+
+    let mut n_square = square.wrapping_shl(8);
+    while n_square > square {
+        ray |= n_square;
+        n_square = n_square.wrapping_shl(8);
+    }
+    ray
+}
+
+pub const fn generate_south_ray(square: u64) -> u64 {
+    let mut ray: u64 = 0;
+
+    let mut n_square = square.wrapping_shr(8);
+    while n_square != 0 {
+        ray |= n_square;
+        n_square = n_square.wrapping_shr(8);
+    }
+    ray
+}
+
+pub const fn generate_east_ray(square: u64) -> u64 {
+    if utils::on_h_file(square) {
+        0
+    } else {
+        let mut ray: u64 = 0;
+
+        let mut e_square = square;
+        while !utils::on_h_file(e_square) {
+            e_square = e_square << 1;
+            ray |= e_square;
+        }
+        ray
+    }
+}
+
+pub const fn generate_west_ray(square: u64) -> u64 {
+    if utils::on_a_file(square) {
+        0
+    } else {
+        let mut ray: u64 = 0;
+
+        let mut w_square = square;
+        while !utils::on_a_file(w_square) {
+            w_square = w_square >> 1;
+            ray |= w_square;
+        }
+        ray
+    }
+}
+
+pub const fn generate_ne_ray(square: u64) -> u64 {
+    if utils::on_h_file(square) || utils::on_rank_8(square) {
+        0
+    } else {
+        let mut ray: u64 = 0;
+
+        let mut ne_square = square;
+        while !(utils::on_h_file(ne_square) || utils::on_rank_8(ne_square)) {
+            ne_square = ne_square << 9;
+            ray |= ne_square;
+        }
+        ray
+    }
+}
+
+pub const fn generate_nw_ray(square: u64) -> u64 {
+    if utils::on_a_file(square) || utils::on_rank_8(square) {
+        0
+    } else {
+        let mut ray: u64 = 0;
+
+        let mut nw_square = square;
+        while !(utils::on_a_file(nw_square) || utils::on_rank_8(nw_square)) {
+            nw_square = nw_square << 7;
+            ray |= nw_square;
+        }
+        ray
+    }
+}
+
+pub const fn generate_sw_ray(square: u64) -> u64 {
+    if utils::on_a_file(square) || utils::on_rank_1(square) {
+        0
+    } else {
+        let mut ray: u64 = 0;
+
+        let mut sw_square = square;
+        while !(utils::on_a_file(sw_square) || utils::on_rank_1(sw_square)) {
+            sw_square = sw_square >> 9;
+            ray |= sw_square;
+        }
+        ray
+    }
+}
+
+pub const fn generate_se_ray(square: u64) -> u64 {
+    if utils::on_h_file(square) || utils::on_rank_1(square) {
+        0
+    } else {
+        let mut ray: u64 = 0;
+
+        let mut se_square = square;
+        while !(utils::on_h_file(se_square) || utils::on_rank_1(se_square)) {
+            se_square = se_square >> 7;
+            ray |= se_square;
+        }
+        ray
+    }
+}
+
 pub fn bishop_attacks(square: &u64) -> u64 {
     let mut bishop_attacks: u64 = 0;
 
@@ -195,7 +307,7 @@ pub const fn generate_one_king_attacks(square: u64) -> u64 {
             king_attacks |= square << 7;
         }
         if !utils::on_rank_1(square) {
-            king_attacks != square >> 9;
+            king_attacks |= square >> 9;
         }
     }
     if !utils::on_h_file(square) {
@@ -285,6 +397,8 @@ pub fn board_attacks(board: &board::ChessBoard) -> Vec<(u64, u64)> {
     }
     attack_list
 }
+
+// unit tests
 
 #[test]
 fn test_pawn_attacks() {
@@ -578,4 +692,12 @@ fn test_board_attacks() {
     psl_moves_manual.push((k_bb2, king_attacks(&true, &k_bb2, &board2)));
 
     assert_eq!(psl_moves, psl_moves_manual);
+}
+
+// delete!!
+#[test]
+fn print_check() {
+    let square = utils::square_to_bb("e4").unwrap();
+    let mask = generate_se_ray(square);
+    utils::print_board_binary(&mask);
 }
