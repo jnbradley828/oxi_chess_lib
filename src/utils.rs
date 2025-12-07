@@ -244,10 +244,6 @@ pub fn squares_right(square: &u64) -> u64 {
     }
 }
 
-pub fn squares_of_distance(square: &u64, distance: &u64) -> u64 {
-    todo!("implement")
-}
-
 // Unit Tests
 
 const A_SQUARES: [u64; 8] = [
