@@ -228,6 +228,71 @@ pub const fn generate_se_ray(square: u64) -> u64 {
     }
 }
 
+pub const fn generate_rays() -> [[u64; 8]; 64] {
+    // indices of inner array defined as follows (0-7): [n, ne, e, se, s, sw, w, nw]
+    let mut rays: [[u64; 8]; 64] = [[0; 8]; 64];
+
+    let mut i = 0;
+    while i < 64 {
+        let piece_bb: u64 = 1 << i;
+
+        rays[i][0] = generate_north_ray(piece_bb);
+        rays[i][1] = generate_ne_ray(piece_bb);
+        rays[i][2] = generate_east_ray(piece_bb);
+        rays[i][3] = generate_se_ray(piece_bb);
+        rays[i][4] = generate_south_ray(piece_bb);
+        rays[i][5] = generate_sw_ray(piece_bb);
+        rays[i][6] = generate_west_ray(piece_bb);
+        rays[i][7] = generate_nw_ray(piece_bb);
+
+        i += 1;
+    }
+    rays
+}
+
+pub const RAYS: [[u64; 8]; 64] = generate_rays();
+
+pub fn check_along_ray(piece: u64, ray: u64, friendly_pieces: u64, enemy_pieces: u64) -> u64 {
+    // define nw, n, ne, e as dir = true, else dir = false
+    let dir = ray > piece;
+    let mut ray_left = ray;
+    let mut updated_ray = 0;
+
+    if dir {
+        let mut next_sqi = 1 << ray_left.trailing_zeros();
+
+        while ray_left != 0 {
+            if next_sqi & friendly_pieces != 0 {
+                return updated_ray;
+            } else if next_sqi & enemy_pieces != 0 {
+                updated_ray = updated_ray | next_sqi;
+                return updated_ray;
+            } else {
+                updated_ray = updated_ray | next_sqi;
+                ray_left = ray_left & !(next_sqi);
+                next_sqi = 1 << ray_left.trailing_zeros();
+            }
+        }
+        return updated_ray;
+    } else {
+        let mut next_sqi = 0x8000000000000000 >> ray_left.leading_zeros();
+
+        while ray_left != 0 {
+            if next_sqi & friendly_pieces != 0 {
+                return updated_ray;
+            } else if next_sqi & enemy_pieces != 0 {
+                updated_ray = updated_ray | next_sqi;
+                return updated_ray;
+            } else {
+                updated_ray = updated_ray | next_sqi;
+                ray_left = ray_left & !(next_sqi);
+                next_sqi = 0x8000000000000000 >> ray_left.leading_zeros();
+            }
+        }
+        return updated_ray;
+    }
+}
+
 pub fn bishop_attacks(square: &u64) -> u64 {
     let mut bishop_attacks: u64 = 0;
 
@@ -694,10 +759,69 @@ fn test_board_attacks() {
     assert_eq!(psl_moves, psl_moves_manual);
 }
 
-// delete!!
 #[test]
-fn print_check() {
-    let square = utils::square_to_bb("e4").unwrap();
-    let mask = generate_se_ray(square);
-    utils::print_board_binary(&mask);
+fn test_ray_generation() {
+    let square1 = utils::square_to_bb("e4").unwrap();
+    let rays: [u64; 8] = [
+        generate_north_ray(square1),
+        generate_ne_ray(square1),
+        generate_east_ray(square1),
+        generate_se_ray(square1),
+        generate_south_ray(square1),
+        generate_sw_ray(square1),
+        generate_west_ray(square1),
+        generate_nw_ray(square1),
+    ];
+
+    assert_eq!(
+        rays,
+        [
+            0x1010101000000000,
+            0x0080402000000000,
+            0x00000000E0000000,
+            0x0000000000204080,
+            0x0000000000101010,
+            0x0000000000080402,
+            0x000000000F000000,
+            0x0102040800000000
+        ]
+    );
+}
+
+#[test]
+fn test_check_along_ray() {
+    // east ray from e4, friendly piece on g4.
+    let square1 = utils::square_to_bb("e4").unwrap();
+    let e_ray = generate_east_ray(square1);
+    let friendly_pieces = 0x0000000040000000;
+    let enemy_pieces = 0;
+    assert_eq!(
+        check_along_ray(square1, e_ray, friendly_pieces, enemy_pieces),
+        0x0000000020000000
+    );
+
+    // east ray from e4, enemy piece on g4.
+    let enemy_pieces = 0x0000000040000000;
+    let friendly_pieces = 0;
+    assert_eq!(
+        check_along_ray(square1, e_ray, friendly_pieces, enemy_pieces),
+        0x0000000060000000
+    );
+
+    // west ray from e4, friendly piece on a4.
+    let w_ray = generate_west_ray(square1);
+    let friendly_pieces = 0x0000000001000000;
+    let enemy_pieces = 0;
+    assert_eq!(
+        check_along_ray(square1, w_ray, friendly_pieces, enemy_pieces),
+        0x000000000E000000
+    );
+
+    // west ray from e4, enemy piece on a4.
+    let enemy_pieces = 0x0000000001000000;
+    let friendly_pieces = 0;
+    assert_eq!(
+        check_along_ray(square1, w_ray, friendly_pieces, enemy_pieces),
+        0x000000000F000000
+    );
 }
