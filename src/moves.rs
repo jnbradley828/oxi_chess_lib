@@ -251,6 +251,7 @@ pub const fn generate_rays() -> [[u64; 8]; 64] {
 }
 
 pub const RAYS: [[u64; 8]; 64] = generate_rays();
+// relevant ray = RAYS[square_bb.trailing_zeros()][i in 0-7 in order n, ne, e, se, s, sw, w, nw]
 
 pub fn check_along_ray(piece: u64, ray: u64, friendly_pieces: u64, enemy_pieces: u64) -> u64 {
     // define nw, n, ne, e as dir = true, else dir = false
@@ -259,7 +260,7 @@ pub fn check_along_ray(piece: u64, ray: u64, friendly_pieces: u64, enemy_pieces:
     let mut updated_ray = 0;
 
     if dir {
-        let mut next_sqi = 1 << ray_left.trailing_zeros();
+        let mut next_sqi = (1 as u64).wrapping_shl(ray_left.trailing_zeros());
 
         while ray_left != 0 {
             if next_sqi & friendly_pieces != 0 {
@@ -270,12 +271,12 @@ pub fn check_along_ray(piece: u64, ray: u64, friendly_pieces: u64, enemy_pieces:
             } else {
                 updated_ray = updated_ray | next_sqi;
                 ray_left = ray_left & !(next_sqi);
-                next_sqi = 1 << ray_left.trailing_zeros();
+                next_sqi = (1 as u64).wrapping_shl(ray_left.trailing_zeros());
             }
         }
         return updated_ray;
     } else {
-        let mut next_sqi = 0x8000000000000000 >> ray_left.leading_zeros();
+        let mut next_sqi = (0x8000000000000000 as u64).wrapping_shr(ray_left.leading_zeros());
 
         while ray_left != 0 {
             if next_sqi & friendly_pieces != 0 {
@@ -286,50 +287,39 @@ pub fn check_along_ray(piece: u64, ray: u64, friendly_pieces: u64, enemy_pieces:
             } else {
                 updated_ray = updated_ray | next_sqi;
                 ray_left = ray_left & !(next_sqi);
-                next_sqi = 0x8000000000000000 >> ray_left.leading_zeros();
+                next_sqi = (0x8000000000000000 as u64).wrapping_shr(ray_left.leading_zeros());
             }
         }
         return updated_ray;
     }
 }
 
-pub fn bishop_attacks(square: &u64) -> u64 {
+pub fn bishop_attacks(color: &bool, square: &u64, board: &board::ChessBoard) -> u64 {
     let mut bishop_attacks: u64 = 0;
 
-    let square_name = utils::bb_to_square(&square).unwrap();
-    let file = (square_name.chars().nth(0).unwrap() as u8) - b'a' + 1;
-    let rank = (square_name.chars().nth(1).unwrap() as u8) - b'0';
-
-    let sum = file + rank;
-    let diff: i8 = (rank as i8) - (file as i8);
-
-    // include all squares with same (file + rank) sum. ('a' = 1, 'b' = 2, etc.)
-    for i in 1.max(sum.saturating_sub(8))..sum.min(9) {
-        let ifile = (b'a' + (i - 1)) as char;
-        let irank = (b'0' + (sum - i)) as char;
-
-        let mut sq_name = String::with_capacity(2);
-        sq_name.push(ifile);
-        sq_name.push(irank);
-
-        let sq = utils::square_to_bb(&sq_name).unwrap();
-        bishop_attacks = bishop_attacks | sq;
+    let friendly_pieces;
+    let enemy_pieces;
+    if *color {
+        friendly_pieces = board.white_pieces;
+        enemy_pieces = board.black_pieces;
+    } else {
+        friendly_pieces = board.black_pieces;
+        enemy_pieces = board.white_pieces;
     }
 
-    // include all squares with same (rank - file) difference.
-    for j in 1.max(1 + diff)..9.min(9 + diff) {
-        let jrank = ((b'0' as u8) + (j as u8)) as char;
-        let jfile = ((b'a' as i8) + (j as i8 - diff - 1)) as u8 as char;
+    let sq_trzs = square.trailing_zeros() as usize;
+    let bishop_rays: [u64; 4] = [
+        RAYS[sq_trzs][1], //ne
+        RAYS[sq_trzs][3], //se
+        RAYS[sq_trzs][5], //sw
+        RAYS[sq_trzs][7], //nw
+    ];
 
-        let mut sq_name = String::with_capacity(2);
-        sq_name.push(jfile);
-        sq_name.push(jrank);
-
-        let sq = utils::square_to_bb(&sq_name).unwrap();
-        bishop_attacks = bishop_attacks | sq;
+    for ray in bishop_rays {
+        bishop_attacks =
+            bishop_attacks | check_along_ray(*square, ray, friendly_pieces, enemy_pieces);
     }
 
-    bishop_attacks = bishop_attacks ^ square;
     bishop_attacks
 }
 
@@ -359,7 +349,7 @@ pub fn rook_attacks(square: &u64) -> u64 {
 pub fn queen_attacks(square: &u64) -> u64 {
     let mut queen_attacks: u64 = 0;
     queen_attacks = queen_attacks | rook_attacks(square);
-    queen_attacks = queen_attacks | bishop_attacks(square);
+    queen_attacks = queen_attacks | bishop_attacks(&true, square, &board::ChessBoard::empty());
     queen_attacks
 }
 
@@ -449,7 +439,7 @@ pub fn board_attacks(board: &board::ChessBoard) -> Vec<(u64, u64)> {
             let attack_squares: u64 = match piece_bb.0 {
                 "pawns" => pawn_attacks(&board.side_to_move, &from_square, board),
                 "knights" => knight_attacks(&board.side_to_move, &from_square, board),
-                "bishops" => bishop_attacks(&from_square),
+                "bishops" => bishop_attacks(&board.side_to_move, &from_square, board),
                 "rooks" => rook_attacks(&from_square),
                 "queens" => queen_attacks(&from_square),
                 "kings" => king_attacks(&board.side_to_move, &from_square, board),
@@ -587,25 +577,26 @@ fn test_knight_attacks() {
 
 #[test]
 fn test_bishop_attacks() {
+    let empty_board = board::ChessBoard::empty();
     // a1
     let square1 = utils::square_to_bb("a1").unwrap();
-    let sq1_bishop_attacks = bishop_attacks(&square1);
+    let sq1_bishop_attacks = bishop_attacks(&true, &square1, &empty_board);
     assert_eq!(sq1_bishop_attacks, 0x8040201008040200);
     // // a8
     let square2 = utils::square_to_bb("a8").unwrap();
-    let sq2_bishop_attacks = bishop_attacks(&square2);
+    let sq2_bishop_attacks = bishop_attacks(&true, &square2, &empty_board);
     assert_eq!(sq2_bishop_attacks, 0x0002040810204080);
     // // h1
     let square3 = utils::square_to_bb("h1").unwrap();
-    let sq3_bishop_attacks = bishop_attacks(&square3);
+    let sq3_bishop_attacks = bishop_attacks(&true, &square3, &empty_board);
     assert_eq!(sq3_bishop_attacks, 0x0102040810204000);
     // // h8
     let square4 = utils::square_to_bb("h8").unwrap();
-    let sq4_bishop_attacks = bishop_attacks(&square4);
+    let sq4_bishop_attacks = bishop_attacks(&true, &square4, &empty_board);
     assert_eq!(sq4_bishop_attacks, 0x0040201008040201);
     // // d4
     let square5 = utils::square_to_bb("d4").unwrap();
-    let sq5_bishop_attacks = bishop_attacks(&square5);
+    let sq5_bishop_attacks = bishop_attacks(&true, &square5, &empty_board);
     assert_eq!(sq5_bishop_attacks, 0x8041221400142241);
 }
 
@@ -701,9 +692,9 @@ fn test_board_attacks() {
     psl_moves_manual.push((n_bb2, knight_attacks(&false, &n_bb2, &board1)));
 
     let b_bb1 = utils::square_to_bb("c7").unwrap();
-    psl_moves_manual.push((b_bb1, bishop_attacks(&b_bb1)));
+    psl_moves_manual.push((b_bb1, bishop_attacks(&false, &b_bb1, &board1)));
     let b_bb2 = utils::square_to_bb("c8").unwrap();
-    psl_moves_manual.push((b_bb2, bishop_attacks(&b_bb2)));
+    psl_moves_manual.push((b_bb2, bishop_attacks(&false, &b_bb2, &board1)));
 
     let r_bb1 = utils::square_to_bb("a7").unwrap();
     psl_moves_manual.push((r_bb1, rook_attacks(&r_bb1)));
@@ -739,9 +730,9 @@ fn test_board_attacks() {
     psl_moves_manual.push((n_bb4, knight_attacks(&true, &n_bb4, &board2)));
 
     let b_bb3 = utils::square_to_bb("c1").unwrap();
-    psl_moves_manual.push((b_bb3, bishop_attacks(&b_bb3)));
+    psl_moves_manual.push((b_bb3, bishop_attacks(&true, &b_bb3, &board2)));
     let b_bb4 = utils::square_to_bb("c2").unwrap();
-    psl_moves_manual.push((b_bb4, bishop_attacks(&b_bb4)));
+    psl_moves_manual.push((b_bb4, bishop_attacks(&true, &b_bb4, &board2)));
 
     let r_bb3 = utils::square_to_bb("a1").unwrap();
     psl_moves_manual.push((r_bb3, rook_attacks(&r_bb3)));
@@ -823,5 +814,41 @@ fn test_check_along_ray() {
     assert_eq!(
         check_along_ray(square1, w_ray, friendly_pieces, enemy_pieces),
         0x000000000F000000
+    );
+
+    // ne ray from e4, enemy piece on g6
+    let ne_ray = generate_ne_ray(square1);
+    let enemy_pieces = 0x0000400000000000;
+    let friendly_pieces = 0;
+    assert_eq!(
+        check_along_ray(square1, ne_ray, friendly_pieces, enemy_pieces),
+        0x0000402000000000
+    );
+
+    // nw ray from e4, friendly piece on a8;
+    let nw_ray = generate_nw_ray(square1);
+    let enemy_pieces = 0;
+    let friendly_pieces = 0x0100000000000000;
+    assert_eq!(
+        check_along_ray(square1, nw_ray, friendly_pieces, enemy_pieces),
+        0x0002040800000000
+    );
+
+    // se ray from e4, enemy piece on g2
+    let se_ray = generate_se_ray(square1);
+    let enemy_pieces = 0x0000000000004000;
+    let friendly_pieces = 0;
+    assert_eq!(
+        check_along_ray(square1, se_ray, friendly_pieces, enemy_pieces),
+        0x0000000000204000
+    );
+
+    // sw ray from e4, friendly piece on b1
+    let sw_ray = generate_sw_ray(square1);
+    let enemy_pieces = 0;
+    let friendly_pieces = 0x0000000000000002;
+    assert_eq!(
+        check_along_ray(square1, sw_ray, friendly_pieces, enemy_pieces),
+        0x0000000000080400
     );
 }
