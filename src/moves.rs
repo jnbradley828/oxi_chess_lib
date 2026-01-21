@@ -323,32 +323,37 @@ pub fn bishop_attacks(color: &bool, square: &u64, board: &board::ChessBoard) -> 
     bishop_attacks
 }
 
-pub fn rook_attacks(square: &u64) -> u64 {
+pub fn rook_attacks(color: &bool, square: &u64, board: &board::ChessBoard) -> u64 {
     let mut rook_attacks: u64 = 0;
 
-    let square_name = utils::bb_to_square(&square).unwrap();
-    let file = square_name.chars().nth(0).unwrap();
-    let rank = square_name.chars().nth(1).unwrap();
-
-    let file_modifier = (file as u64) - (b'a' as u64);
-    for r in 0..8 {
-        let sq_modifier: u64 = (8 * r) + file_modifier;
-        rook_attacks = rook_attacks | (1 << sq_modifier);
+    let friendly_pieces;
+    let enemy_pieces;
+    if *color {
+        friendly_pieces = board.white_pieces;
+        enemy_pieces = board.black_pieces;
+    } else {
+        friendly_pieces = board.black_pieces;
+        enemy_pieces = board.white_pieces;
     }
 
-    let rank_val = (rank as u64) - (b'0' as u64);
-    let left_sq = (rank_val - 1) * 8;
-    for f in left_sq..(left_sq + 8) {
-        rook_attacks = rook_attacks | (1 << f);
+    let sq_trzs = square.trailing_zeros() as usize;
+    let rook_rays: [u64; 4] = [
+        RAYS[sq_trzs][0], //n
+        RAYS[sq_trzs][2], //e
+        RAYS[sq_trzs][4], //s
+        RAYS[sq_trzs][6], //w
+    ];
+
+    for ray in rook_rays {
+        rook_attacks = rook_attacks | check_along_ray(*square, ray, friendly_pieces, enemy_pieces);
     }
 
-    rook_attacks = rook_attacks ^ square;
     rook_attacks
 }
 
 pub fn queen_attacks(square: &u64) -> u64 {
     let mut queen_attacks: u64 = 0;
-    queen_attacks = queen_attacks | rook_attacks(square);
+    queen_attacks = queen_attacks | rook_attacks(&true, square, &board::ChessBoard::empty());
     queen_attacks = queen_attacks | bishop_attacks(&true, square, &board::ChessBoard::empty());
     queen_attacks
 }
@@ -440,7 +445,7 @@ pub fn board_attacks(board: &board::ChessBoard) -> Vec<(u64, u64)> {
                 "pawns" => pawn_attacks(&board.side_to_move, &from_square, board),
                 "knights" => knight_attacks(&board.side_to_move, &from_square, board),
                 "bishops" => bishop_attacks(&board.side_to_move, &from_square, board),
-                "rooks" => rook_attacks(&from_square),
+                "rooks" => rook_attacks(&board.side_to_move, &from_square, board),
                 "queens" => queen_attacks(&from_square),
                 "kings" => king_attacks(&board.side_to_move, &from_square, board),
                 &_ => 0,
@@ -602,25 +607,26 @@ fn test_bishop_attacks() {
 
 #[test]
 fn test_rook_attacks() {
+    let empty_board = board::ChessBoard::empty();
     // a1
     let square1 = utils::square_to_bb("a1").unwrap();
-    let sq1_rook_attacks = rook_attacks(&square1);
+    let sq1_rook_attacks = rook_attacks(&true, &square1, &empty_board);
     assert_eq!(sq1_rook_attacks, 0x01010101010101FE);
     // a8
     let square2 = utils::square_to_bb("a8").unwrap();
-    let sq2_rook_attacks = rook_attacks(&square2);
+    let sq2_rook_attacks = rook_attacks(&true, &square2, &empty_board);
     assert_eq!(sq2_rook_attacks, 0xFE01010101010101);
     // h1
     let square3 = utils::square_to_bb("h1").unwrap();
-    let sq3_rook_attacks = rook_attacks(&square3);
+    let sq3_rook_attacks = rook_attacks(&true, &square3, &empty_board);
     assert_eq!(sq3_rook_attacks, 0x808080808080807F);
     // h8
     let square4 = utils::square_to_bb("h8").unwrap();
-    let sq4_rook_attacks = rook_attacks(&square4);
+    let sq4_rook_attacks = rook_attacks(&true, &square4, &empty_board);
     assert_eq!(sq4_rook_attacks, 0x7F80808080808080);
     // d4
     let square5 = utils::square_to_bb("d4").unwrap();
-    let sq5_rook_attacks = rook_attacks(&square5);
+    let sq5_rook_attacks = rook_attacks(&true, &square5, &empty_board);
     assert_eq!(sq5_rook_attacks, 0x08080808F7080808);
 }
 
@@ -697,9 +703,9 @@ fn test_board_attacks() {
     psl_moves_manual.push((b_bb2, bishop_attacks(&false, &b_bb2, &board1)));
 
     let r_bb1 = utils::square_to_bb("a7").unwrap();
-    psl_moves_manual.push((r_bb1, rook_attacks(&r_bb1)));
+    psl_moves_manual.push((r_bb1, rook_attacks(&false, &r_bb1, &board1)));
     let r_bb2 = utils::square_to_bb("a8").unwrap();
-    psl_moves_manual.push((r_bb2, rook_attacks(&r_bb2)));
+    psl_moves_manual.push((r_bb2, rook_attacks(&false, &r_bb2, &board1)));
 
     let q_bb1 = utils::square_to_bb("d7").unwrap();
     psl_moves_manual.push((q_bb1, queen_attacks(&q_bb1)));
@@ -735,9 +741,9 @@ fn test_board_attacks() {
     psl_moves_manual.push((b_bb4, bishop_attacks(&true, &b_bb4, &board2)));
 
     let r_bb3 = utils::square_to_bb("a1").unwrap();
-    psl_moves_manual.push((r_bb3, rook_attacks(&r_bb3)));
+    psl_moves_manual.push((r_bb3, rook_attacks(&true, &r_bb3, &board2)));
     let r_bb4 = utils::square_to_bb("a2").unwrap();
-    psl_moves_manual.push((r_bb4, rook_attacks(&r_bb4)));
+    psl_moves_manual.push((r_bb4, rook_attacks(&true, &r_bb4, &board2)));
 
     let q_bb3 = utils::square_to_bb("d1").unwrap();
     psl_moves_manual.push((q_bb3, queen_attacks(&q_bb3)));
