@@ -1,3 +1,5 @@
+// this file produces attack masks for each piece on a given board.
+
 use crate::board;
 use crate::utils;
 
@@ -415,14 +417,14 @@ pub fn king_attacks(color: &bool, square: &u64, board: &board::ChessBoard) -> u6
     king_attacks
 }
 
-pub fn board_attacks(board: &board::ChessBoard) -> Vec<(u64, u64)> {
+pub fn board_attacks(board: &board::ChessBoard, color: bool) -> Vec<(u64, u64)> {
     // The idea is to return a vector containing type (u64, u64).
     // The first u64 denotes just one bit that shows the location of the from-piece.
     // The second u64 is a mask where every square the from-piece attacks has bit value 1.
     let mut attack_list: Vec<(u64, u64)> = Vec::new();
 
-    let mut color_mask: u64 = 0;
-    if board.side_to_move {
+    let color_mask;
+    if color {
         color_mask = board.white_pieces;
     } else {
         color_mask = board.black_pieces;
@@ -442,12 +444,12 @@ pub fn board_attacks(board: &board::ChessBoard) -> Vec<(u64, u64)> {
             let from_square: u64 = 1 << colored_bb.trailing_zeros();
 
             let attack_squares: u64 = match piece_bb.0 {
-                "pawns" => pawn_attacks(&board.side_to_move, &from_square, board),
-                "knights" => knight_attacks(&board.side_to_move, &from_square, board),
-                "bishops" => bishop_attacks(&board.side_to_move, &from_square, board),
-                "rooks" => rook_attacks(&board.side_to_move, &from_square, board),
-                "queens" => queen_attacks(&board.side_to_move, &from_square, board),
-                "kings" => king_attacks(&board.side_to_move, &from_square, board),
+                "pawns" => pawn_attacks(&color, &from_square, board),
+                "knights" => knight_attacks(&color, &from_square, board),
+                "bishops" => bishop_attacks(&color, &from_square, board),
+                "rooks" => rook_attacks(&color, &from_square, board),
+                "queens" => queen_attacks(&color, &from_square, board),
+                "kings" => king_attacks(&color, &from_square, board),
                 &_ => 0,
             };
 
@@ -685,7 +687,7 @@ fn test_board_attacks() {
     let board1 =
         board::ChessBoard::initialize_from_fen("rnbq1p2/rnbq1pk1/8/8/8/8/8/K7 b KQkq - 0 1")
             .unwrap();
-    let psl_moves = board_attacks(&board1);
+    let psl_moves = board_attacks(&board1, false);
 
     let mut psl_moves_manual: Vec<(u64, u64)> = Vec::new();
 
@@ -723,7 +725,7 @@ fn test_board_attacks() {
     let board2 =
         board::ChessBoard::initialize_from_fen("k7/8/8/8/8/8/RNBQ1PK1/RNBQ1P2 w KQkq - 0 1")
             .unwrap();
-    let psl_moves = board_attacks(&board2);
+    let psl_moves = board_attacks(&board2, true);
 
     let mut psl_moves_manual: Vec<(u64, u64)> = Vec::new();
 

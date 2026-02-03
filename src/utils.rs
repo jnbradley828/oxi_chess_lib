@@ -1,4 +1,4 @@
-// Ideas for this file: display game board in text, display legal moves, display move list so far, display FEN, etc.
+// this file defines many helpful utilities used in other modules.
 
 pub const fn on_a_file(piece_location: u64) -> bool {
     // if more than one bit = 1: raise error.
