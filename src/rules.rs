@@ -1,31 +1,26 @@
 // todo!("Functions needed before finishing moves.rs and game.rs: is_check, is_checkmate, is_stalemate, is_fifty_move_rule, is_threefold_repetition, etc.");
 
-use crate::{board, moves, utils};
+use crate::{board, moves};
 
 // checks if the player to move is in check.
 pub fn is_check(board: &board::ChessBoard) -> bool {
-    let color_mask;
     if board.side_to_move {
-        color_mask = board.white_pieces;
-    } else {
-        color_mask = board.black_pieces;
-    }
-
-    let king_to_check = board.kings & color_mask;
-    println!("king location");
-    utils::print_board_binary(&king_to_check);
-
-    let opposing_attacks = moves::board_attacks(&board, !board.side_to_move);
-    for oa_mask in opposing_attacks {
-        println!("opposing piece location");
-        utils::print_board_binary(&oa_mask.0);
-        println!("opposing attacks");
-        utils::print_board_binary(&oa_mask.1);
-        if oa_mask.1 & king_to_check != 0 {
+        let king_sq = board.kings & board.white_pieces;
+        let attacked_sqs = board.black_attacks;
+        if king_sq & attacked_sqs != 0 {
             return true;
+        } else {
+            return false;
+        }
+    } else {
+        let king_sq = board.kings & board.black_pieces;
+        let attacked_sqs = board.white_attacks;
+        if king_sq & attacked_sqs != 0 {
+            return true;
+        } else {
+            return false;
         }
     }
-    return false;
 }
 
 #[test]

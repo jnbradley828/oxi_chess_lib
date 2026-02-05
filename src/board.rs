@@ -1,3 +1,5 @@
+use crate::moves;
+
 /// Struct representing a chess board.
 /// We will let the least significant bit represent the a1 square.
 pub struct ChessBoard {
@@ -14,12 +16,15 @@ pub struct ChessBoard {
     pub castling_rights: u8, // uses 4 least significant bits (white kingside, white queenside, black kingside, black queenside)
     pub halfmove_clock: u8,  // tracks half moves since last capture or pawn move.
     pub fullmove_number: u16, // tracks full moves since start of game.
+
+    pub white_attacks: u64,
+    pub black_attacks: u64,
 }
 
 /// Creates a new chess board with the standard starting position.
 impl ChessBoard {
     pub fn initialize() -> Self {
-        Self {
+        let mut board = ChessBoard {
             pawns: 0x00FF00000000FF00,   // pawns at ranks 2 & 7.
             knights: 0x4200000000000042, // knights at b1, g1, b8, & g8.
             bishops: 0x2400000000000024, // bishops at c1, f1, c8, & f8.
@@ -35,7 +40,14 @@ impl ChessBoard {
             castling_rights: 0b1111,
             halfmove_clock: 0,
             fullmove_number: 1,
-        }
+
+            white_attacks: 0,
+            black_attacks: 0,
+        };
+
+        board.white_attacks = moves::board_attacks(&board, true);
+        board.black_attacks = moves::board_attacks(&board, false);
+        board
     }
 
     /// Creates a new empty chess board. White to move by default.
@@ -56,6 +68,9 @@ impl ChessBoard {
             castling_rights: 0,
             halfmove_clock: 0,
             fullmove_number: 1,
+
+            white_attacks: 0,
+            black_attacks: 0,
         }
     }
 
@@ -130,7 +145,7 @@ impl ChessBoard {
                 ep_square = 1 << (63 - sq_modifier);
             }
 
-            return Ok(Self {
+            let mut board = ChessBoard {
                 pawns: pawns1,
                 knights: knights1,
                 bishops: bishops1,
@@ -150,7 +165,13 @@ impl ChessBoard {
                 castling_rights: castling_rights1,
                 halfmove_clock: fen_components[4].parse::<u8>().unwrap(),
                 fullmove_number: fen_components[5].parse::<u16>().unwrap(),
-            });
+                white_attacks: 0,
+                black_attacks: 0,
+            };
+            board.white_attacks = moves::board_attacks(&board, true);
+            board.black_attacks = moves::board_attacks(&board, false);
+
+            return Ok(board);
         }
     }
 }
