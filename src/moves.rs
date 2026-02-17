@@ -462,14 +462,6 @@ pub fn board_attacks(board: &board::ChessBoard, color: bool) -> u64 {
 pub fn get_pseudolegal_moves(board: &board::ChessBoard) {
     todo!("this function is to return all pseudolegal moves on a board for the side to play.")
 }
-
-pub fn make_move(board: &board::ChessBoard, move: &str) {
-    todo!("this fn is to make a move on a chessboard and return some kind of unmake move data.")
-}
-
-pub fn unmake_move(board: &board::ChessBoard, move: &str) {
-    todo!("this fn is to unmake a move made with make_move() using the unmake move data.")
-}
 */
 
 // unit tests
