@@ -139,7 +139,7 @@ impl ChessBoard {
                 return Err("Invalid en passant square".to_string());
             }
 
-            let mut board = ChessBoard {
+            let board = ChessBoard {
                 pawns: pawns1,
                 knights: knights1,
                 bishops: bishops1,
@@ -181,6 +181,7 @@ impl ChessBoard {
 
     // move: u16, most significant 6 digits = from square, next 6 = to_square, least sig 4 digits = move type flag
     // move type flags: normal = 0, capture = 1, castle = 2, en passant = 3, promotion (n,b,r,q) = (4,5,6,7) respectively, promo w/ capture (n,b,r,q) = (8,9,10,11) respectively
+    #[rustfmt::skip]
     pub fn make_move(&mut self, move_int: u16) -> Result<UndoInfo, String> {
         let from_sqi = (move_int >> 10) as u8;
         let to_sqi = ((move_int >> 4) & 0b111111) as u8;
@@ -363,11 +364,21 @@ impl ChessBoard {
                 }
             } else {
                 self.halfmove_clock = 0;
+
                 match capture_type {
-                    Some(0) => self.pawns &= !to_sq_bb,
-                    Some(1) => self.knights &= !to_sq_bb,
-                    Some(2) => self.bishops &= !to_sq_bb,
-                    Some(3) => self.rooks &= !to_sq_bb,
+                    Some(0) => if capture_type != moving_type {self.pawns &= !to_sq_bb},
+                    Some(1) => if capture_type != moving_type {self.knights &= !to_sq_bb},
+                    Some(2) => if capture_type != moving_type {self.bishops &= !to_sq_bb},
+                    Some(3) => {
+                        if capture_type != moving_type {self.rooks &= !to_sq_bb};
+                        match to_sqi {
+                            0 => self.castling_rights &= !0b0100,
+                            7 => self.castling_rights &= !0b1000,
+                            56 => self.castling_rights &= !0b0001,
+                            63 => self.castling_rights &= !0b0010,
+                            _ => {}
+                        };
+                    }
                     Some(4) => self.queens &= !to_sq_bb,
                     _ => {}
                 }
@@ -392,7 +403,7 @@ impl ChessBoard {
 
         return Ok(undo_info);
 
-        todo!("implement promotion board state changes & test. Test that castling rights are taken away after rook moves.")
+        todo!("implement promotion board state changes & test.)
     }
 
     pub fn unmake_move(&mut self, move_int: &u16) {
@@ -463,7 +474,7 @@ pub fn verify_fen(fen: &str) -> bool {
 
     // Castling rights:
     //      If not in "KQkq-" or not len 1..4 return false.
-    if !"KQkq-".contains(fen_components[2]) || fen_components[2].len() > 4 {
+    if !fen_components[2].chars().all(|c| "KQkq-".contains(c)) || fen_components[2].len() > 4 {
         return false;
     }
     //      Castling rights cannot be both empty and not empty.
@@ -971,4 +982,85 @@ pub fn test_make_move() {
 
     assert_eq!(board4, correct_resulting_board2);
     assert_eq!(move2_undo, correct_undo2);
+
+    let mut board5 =
+        ChessBoard::initialize_from_fen("r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1").unwrap();
+
+    let move1_int = 0b0000000000010000; // a1 - b1
+    let move1_undo = board5.make_move(move1_int);
+
+    let correct_resulting_board1 =
+        ChessBoard::initialize_from_fen("r3k2r/8/8/8/8/8/8/1R2K2R b Kkq - 1 1").unwrap();
+    let correct_undo1: Result<UndoInfo, String> = Ok(UndoInfo {
+        halfmove_clock: 0,
+        castling_rights: 0b1111,
+        en_passant_square: None,
+        captured_type: None,
+    });
+
+    assert_eq!(board5, correct_resulting_board1);
+    assert_eq!(move1_undo, correct_undo1);
+
+    let move2_int = 0b1110001110010000; // a8 - b8
+    let move2_undo = board5.make_move(move2_int);
+
+    let correct_resulting_board2 =
+        ChessBoard::initialize_from_fen("1r2k2r/8/8/8/8/8/8/1R2K2R w Kk - 2 2").unwrap();
+    let correct_undo2: Result<UndoInfo, String> = Ok(UndoInfo {
+        halfmove_clock: 1,
+        castling_rights: 0b1011,
+        en_passant_square: None,
+        captured_type: None,
+    });
+
+    assert_eq!(board5, correct_resulting_board2);
+    assert_eq!(move2_undo, correct_undo2);
+
+    let move3_int = 0b0001110001100000; // h1 - g1
+    let move3_undo = board5.make_move(move3_int);
+
+    let correct_resulting_board3 =
+        ChessBoard::initialize_from_fen("1r2k2r/8/8/8/8/8/8/1R2K1R1 b k - 3 2").unwrap();
+    let correct_undo3: Result<UndoInfo, String> = Ok(UndoInfo {
+        halfmove_clock: 2,
+        castling_rights: 0b1010,
+        en_passant_square: None,
+        captured_type: None,
+    });
+
+    assert_eq!(board5, correct_resulting_board3);
+    assert_eq!(move3_undo, correct_undo3);
+
+    let move4_int = 0b1111111111100000; // h8 - g8
+    let move4_undo = board5.make_move(move4_int);
+
+    let correct_resulting_board4 =
+        ChessBoard::initialize_from_fen("1r2k1r1/8/8/8/8/8/8/1R2K1R1 w - - 4 3").unwrap();
+    let correct_undo4: Result<UndoInfo, String> = Ok(UndoInfo {
+        halfmove_clock: 3,
+        castling_rights: 0b0010,
+        en_passant_square: None,
+        captured_type: None,
+    });
+
+    assert_eq!(board5, correct_resulting_board4);
+    assert_eq!(move4_undo, correct_undo4);
+
+    let mut board6 =
+        ChessBoard::initialize_from_fen("r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1").unwrap();
+
+    let move1_int = 0b0000001110000001; // a1 x a8
+    let move1_undo = board6.make_move(move1_int);
+
+    let correct_resulting_board1 =
+        ChessBoard::initialize_from_fen("R3k2r/8/8/8/8/8/8/4K2R b Kk - 0 1").unwrap();
+    let correct_undo1: Result<UndoInfo, String> = Ok(UndoInfo {
+        halfmove_clock: 0,
+        castling_rights: 0b1111,
+        en_passant_square: None,
+        captured_type: Some(3),
+    });
+
+    assert_eq!(board6, correct_resulting_board1);
+    assert_eq!(move1_undo, correct_undo1);
 }
