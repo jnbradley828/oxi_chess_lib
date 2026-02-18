@@ -201,6 +201,7 @@ impl ChessBoard {
         let from_sqi = (move_int >> 10) as u8;
         let to_sqi = ((move_int >> 4) & 0b111111) as u8;
         let flag = (move_int & 0b1111) as u8;
+        let moving_type = self.piece_type_at(from_sqi);
 
         // collect unmake move data
         let prev_halfmove_clock = self.halfmove_clock;
@@ -213,7 +214,7 @@ impl ChessBoard {
             capture_type = self.piece_type_at(to_sqi);
         } else if flag == 3 {
             // if move flag is en passant
-            capture_type = Some(self.en_passant.trailing_zeros() as u8);
+            capture_type = Some(0);
         } else {
             capture_type = None;
         }
@@ -263,6 +264,8 @@ impl ChessBoard {
                 } else {
                     self.en_passant = to_sq_bb << 8;
                 }
+            } else {
+                self.en_passant = 0;
             }
         } else if piece_from_type == Some(1) {
             // knight
@@ -280,6 +283,14 @@ impl ChessBoard {
             self.rooks |= to_sq_bb;
             self.en_passant = 0;
             self.halfmove_clock += 1;
+
+            match from_sqi {
+                0 => self.castling_rights &= !0b0100,
+                7 => self.castling_rights &= !0b1000,
+                56 => self.castling_rights &= !0b0001,
+                63 => self.castling_rights &= !0b0010,
+                _ => {}
+            }
         } else if piece_from_type == Some(4) {
             self.queens &= !from_sq_bb;
             self.queens |= to_sq_bb;
@@ -290,26 +301,97 @@ impl ChessBoard {
             self.kings |= to_sq_bb;
             self.en_passant = 0;
             self.halfmove_clock += 1;
-            if self.side_to_move {
-                self.castling_rights &= !0b1100;
+
+            // handle castling.
+            if flag == 2 {
+                if self.side_to_move {
+                    if to_sqi == 2 {
+                        // c1
+                        if self.castling_rights & 0b0100 != 0 {
+                            self.rooks &= !0x0000000000000001;
+                            self.rooks |= 0x00000000000000008;
+                            self.white_pieces &= !0x0000000000000001;
+                            self.white_pieces |= 0x00000000000000008;
+                            self.castling_rights &= !0b1100;
+                        } else {
+                            return Err("white cannot castle queenside.".to_string());
+                        }
+                    } else if to_sqi == 6 {
+                        // g1
+                        if self.castling_rights & 0b1000 != 0 {
+                            self.rooks &= !0x0000000000000080;
+                            self.rooks |= 0x00000000000000020;
+                            self.white_pieces &= !0x0000000000000080;
+                            self.white_pieces |= 0x00000000000000020;
+                            self.castling_rights &= !0b1100;
+                        } else {
+                            return Err("white cannot castle kingside.".to_string());
+                        }
+                    } else {
+                        return Err("invalid castling move.".to_string());
+                    }
+                } else {
+                    if to_sqi == 58 {
+                        // c8
+                        if self.castling_rights & 0b0001 != 0 {
+                            self.rooks &= !0x0100000000000000;
+                            self.rooks |= 0x0800000000000000;
+                            self.black_pieces &= !0x0100000000000000;
+                            self.black_pieces |= 0x0800000000000000;
+                            self.castling_rights &= !0b0011;
+                        } else {
+                            return Err("black cannot castle queenside.".to_string());
+                        }
+                    } else if to_sqi == 62 {
+                        // g8
+                        if self.castling_rights & 0b0010 != 0 {
+                            self.rooks &= !0x8000000000000000;
+                            self.rooks |= 0x2000000000000000;
+                            self.black_pieces &= !0x8000000000000000;
+                            self.black_pieces |= 0x2000000000000000;
+                            self.castling_rights &= !0b0011;
+                        } else {
+                            return Err("white cannot castle kingside.".to_string());
+                        }
+                    } else {
+                        return Err("invalid castling move.".to_string());
+                    }
+                }
             } else {
-                self.castling_rights &= !0b0011;
+                if self.side_to_move {
+                    self.castling_rights &= !0b1100;
+                } else {
+                    self.castling_rights &= !0b0011;
+                }
             }
         }
+
         if capture_type.is_some() {
-            self.halfmove_clock = 0;
-            match capture_type {
-                Some(0) => self.pawns &= !to_sq_bb,
-                Some(1) => self.knights &= !to_sq_bb,
-                Some(2) => self.bishops &= !to_sq_bb,
-                Some(3) => self.rooks &= !to_sq_bb,
-                Some(4) => self.queens &= !to_sq_bb,
-                _ => {}
-            }
-            if self.side_to_move {
-                self.black_pieces &= !to_sq_bb;
+            if flag == 3 {
+                if moving_type != Some(0) {
+                    return Err("Only pawns can capture en passant.".to_string());
+                }
+                self.pawns &= !(to_sq_bb >> 8);
+                if self.side_to_move {
+                    self.black_pieces &= !(to_sq_bb >> 8);
+                } else {
+                    self.white_pieces &= !(to_sq_bb << 8);
+                }
             } else {
-                self.white_pieces &= !to_sq_bb;
+                self.halfmove_clock = 0;
+                match capture_type {
+                    Some(0) => self.pawns &= !to_sq_bb,
+                    Some(1) => self.knights &= !to_sq_bb,
+                    Some(2) => self.bishops &= !to_sq_bb,
+                    Some(3) => self.rooks &= !to_sq_bb,
+                    Some(4) => self.queens &= !to_sq_bb,
+                    _ => {}
+                }
+                if self.side_to_move {
+                    self.black_pieces &= !to_sq_bb;
+                } else {
+                    self.white_pieces &= !to_sq_bb;
+                }
             }
         }
 
@@ -329,7 +411,7 @@ impl ChessBoard {
 
         return Ok(undo_info);
 
-        todo!("implement en passant, castling, and promotion board state changes. Implement castling rights being taken away from rook moves & castling. Test these changes.")
+        todo!("implement promotion board state changes & test. Test that castling rights are taken away after rook moves.")
     }
 
     pub fn unmake_move(&mut self, move_int: &u16) {
@@ -808,4 +890,104 @@ pub fn test_make_move() {
 
     assert_eq!(board1, correct_resulting_board5);
     assert_eq!(move5_undo, correct_undo5);
+
+    let mut board2 = ChessBoard::initialize_from_fen(
+        "rnbqkbnr/ppp1pppp/8/3pP3/8/8/PPPP1PPP/RNBQKBNR w KQkq d6 0 1",
+    )
+    .unwrap();
+
+    let move1_int = 0b1001001010110011; // e5 x d5 en passant
+    let move1_undo = board2.make_move(move1_int);
+
+    let correct_resulting_board1 = ChessBoard::initialize_from_fen(
+        "rnbqkbnr/ppp1pppp/3P4/8/8/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1",
+    )
+    .unwrap();
+    let correct_undo1: Result<UndoInfo, String> = Ok(UndoInfo {
+        halfmove_clock: 0,
+        castling_rights: 0b1111,
+        en_passant_square: Some(43),
+        captured_type: Some(0),
+    });
+
+    assert_eq!(board2, correct_resulting_board1);
+    assert_eq!(move1_undo, correct_undo1);
+
+    let mut board3 = ChessBoard::initialize_from_fen(
+        "rnbqk2r/pppp1ppp/5n2/2b1p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 0 1",
+    )
+    .unwrap();
+
+    let move1_int = 0b0001000001100010; // e1 - g1 (white kingside castle)
+    let move1_undo = board3.make_move(move1_int);
+
+    let correct_resulting_board1 = ChessBoard::initialize_from_fen(
+        "rnbqk2r/pppp1ppp/5n2/2b1p3/2B1P3/5N2/PPPP1PPP/RNBQ1RK1 b kq - 1 1",
+    )
+    .unwrap();
+    let correct_undo1: Result<UndoInfo, String> = Ok(UndoInfo {
+        halfmove_clock: 0,
+        castling_rights: 0b1111,
+        en_passant_square: None,
+        captured_type: None,
+    });
+
+    assert_eq!(board3, correct_resulting_board1);
+    assert_eq!(move1_undo, correct_undo1);
+
+    let move2_int = 0b1111001111100010; // e8 - g8 (black kingside castle)
+    let move2_undo = board3.make_move(move2_int);
+
+    let correct_resulting_board2 = ChessBoard::initialize_from_fen(
+        "rnbq1rk1/pppp1ppp/5n2/2b1p3/2B1P3/5N2/PPPP1PPP/RNBQ1RK1 w - - 2 2",
+    )
+    .unwrap();
+    let correct_undo2: Result<UndoInfo, String> = Ok(UndoInfo {
+        halfmove_clock: 1,
+        castling_rights: 0b11,
+        en_passant_square: None,
+        captured_type: None,
+    });
+
+    assert_eq!(board3, correct_resulting_board2);
+    assert_eq!(move2_undo, correct_undo2);
+
+    let mut board4 = ChessBoard::initialize_from_fen(
+        "r3kbnr/pppqpppp/2n5/3p1b2/3P1B2/2N1P3/PPPQ1PPP/R3KBNR b KQkq - 0 1",
+    )
+    .unwrap();
+
+    let move1_int = 0b1111001110100010; // e8 - c8 (black queenside castle)
+    let move1_undo = board4.make_move(move1_int);
+
+    let correct_resulting_board1 = ChessBoard::initialize_from_fen(
+        "2kr1bnr/pppqpppp/2n5/3p1b2/3P1B2/2N1P3/PPPQ1PPP/R3KBNR w KQ - 1 2",
+    )
+    .unwrap();
+    let correct_undo1: Result<UndoInfo, String> = Ok(UndoInfo {
+        halfmove_clock: 0,
+        castling_rights: 0b1111,
+        en_passant_square: None,
+        captured_type: None,
+    });
+
+    assert_eq!(board4, correct_resulting_board1);
+    assert_eq!(move1_undo, correct_undo1);
+
+    let move2_int = 0b0001000000100010; // e1 - c1 (white queenside castle)
+    let move2_undo = board4.make_move(move2_int);
+
+    let correct_resulting_board2 = ChessBoard::initialize_from_fen(
+        "2kr1bnr/pppqpppp/2n5/3p1b2/3P1B2/2N1P3/PPPQ1PPP/2KR1BNR b - - 2 2",
+    )
+    .unwrap();
+    let correct_undo2: Result<UndoInfo, String> = Ok(UndoInfo {
+        halfmove_clock: 1,
+        castling_rights: 0b1100,
+        en_passant_square: None,
+        captured_type: None,
+    });
+
+    assert_eq!(board4, correct_resulting_board2);
+    assert_eq!(move2_undo, correct_undo2);
 }
