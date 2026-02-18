@@ -4,22 +4,18 @@ use crate::{board, moves};
 
 // checks if the player to move is in check.
 pub fn is_check(board: &board::ChessBoard) -> bool {
+    let king_sq: u64;
     if board.side_to_move {
-        let king_sq = board.kings & board.white_pieces;
-        let attacked_sqs = board.black_attacks;
-        if king_sq & attacked_sqs != 0 {
-            return true;
-        } else {
-            return false;
-        }
+        king_sq = board.kings & board.white_pieces;
     } else {
-        let king_sq = board.kings & board.black_pieces;
-        let attacked_sqs = board.white_attacks;
-        if king_sq & attacked_sqs != 0 {
-            return true;
-        } else {
-            return false;
-        }
+        king_sq = board.kings & board.black_pieces;
+    }
+
+    let attacked_sqs = moves::board_attacks(&board, !board.side_to_move);
+    if king_sq & attacked_sqs != 0 {
+        return true;
+    } else {
+        return false;
     }
 }
 

@@ -17,9 +17,6 @@ pub struct ChessBoard {
     pub castling_rights: u8, // uses 4 least significant bits (from most sig to least sig: white kingside, white queenside, black kingside, black queenside)
     pub halfmove_clock: u8,  // tracks half moves since last capture or pawn move.
     pub fullmove_number: u16, // tracks full moves since start of game.
-
-    pub white_attacks: u64,
-    pub black_attacks: u64,
 }
 
 #[derive(Debug, PartialEq)]
@@ -49,13 +46,7 @@ impl ChessBoard {
             castling_rights: 0b1111,
             halfmove_clock: 0,
             fullmove_number: 1,
-
-            white_attacks: 0,
-            black_attacks: 0,
         };
-
-        board.white_attacks = moves::board_attacks(&board, true);
-        board.black_attacks = moves::board_attacks(&board, false);
         board
     }
 
@@ -77,9 +68,6 @@ impl ChessBoard {
             castling_rights: 0,
             halfmove_clock: 0,
             fullmove_number: 1,
-
-            white_attacks: 0,
-            black_attacks: 0,
         }
     }
 
@@ -171,11 +159,7 @@ impl ChessBoard {
                 castling_rights: castling_rights1,
                 halfmove_clock: fen_components[4].parse::<u8>().unwrap(),
                 fullmove_number: fen_components[5].parse::<u16>().unwrap(),
-                white_attacks: 0,
-                black_attacks: 0,
             };
-            board.white_attacks = moves::board_attacks(&board, true);
-            board.black_attacks = moves::board_attacks(&board, false);
 
             return Ok(board);
         }
@@ -405,9 +389,6 @@ impl ChessBoard {
             self.side_to_move = true;
             self.fullmove_number += 1;
         }
-
-        self.white_attacks = moves::board_attacks(&self, true);
-        self.black_attacks = moves::board_attacks(&self, false);
 
         return Ok(undo_info);
 
