@@ -2,7 +2,7 @@ use crate::{moves, utils};
 
 /// Struct representing a chess board.
 /// We will let the least significant bit represent the a1 square.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct ChessBoard {
     pub pawns: u64,
     pub knights: u64,
@@ -239,7 +239,7 @@ impl ChessBoard {
         if piece_from_type == Some(0) {
             // pawn
             self.pawns &= !from_sq_bb;
-            match flag {
+            match flag { // promotion: add promotion type to to_sq.
                 4 | 8 => {
                     self.knights |= to_sq_bb;
                     piece_from_type = Some(1); // changes piece type so that this piece is not accidentally removed during capture logic.
@@ -369,7 +369,7 @@ impl ChessBoard {
         }
 
         if capture_type.is_some() {
-            if flag == 3 {
+            if flag == 3 { // en passant
                 if piece_from_type != Some(0) {
                     return Err("Only pawns can capture en passant.".to_string());
                 }
@@ -396,7 +396,7 @@ impl ChessBoard {
                             _ => {}
                         };
                     }
-                    Some(4) => self.queens &= !to_sq_bb,
+                    Some(4) => if capture_type != piece_from_type {self.queens &= !to_sq_bb},
                     _ => {}
                 }
                 if self.side_to_move {
@@ -419,12 +419,165 @@ impl ChessBoard {
         }
 
         return Ok(undo_info);
-
-        todo!("implement promotion board state changes & test.")
     }
 
-    pub fn unmake_move(&mut self, move_int: &u16) {
-        todo!("this fn is to unmake a move made with make_move() using the unmake move data.")
+    pub fn unmake_move(&mut self, move_int: u16, undo_info: &UndoInfo) -> Result<(), String> {
+        // verify valid move_int to undo
+        // check that there is a piece on the to_square
+        let from_sqi = (move_int >> 10) as u8;
+        let to_sqi = ((move_int >> 4) & 0b111111) as u8;
+        let flag = (move_int & 0b1111) as u8;
+
+        if self.piece_type_at(to_sqi).is_none() {
+            return Err("No piece at target square.".to_string());
+        };
+
+        // check that there is no piece at the from square
+        let from_sq_bb: u64 = 1 << from_sqi;
+        if (self.black_pieces | self.white_pieces) & from_sq_bb != 0 {
+            return Err("Piece present at from square.".to_string());
+        }
+
+        // check that flag is in the right range
+        if !((0..=11).contains(&(flag as i32))) {
+            return Err("Invalid flag.".to_string());
+        }
+
+        // undo the move: update bitboards.
+
+        // if promotion flag: remove to_sq piece and place pawn on from_sq
+        let to_sq_bb: u64 = 1 << to_sqi;
+        let to_sq_type = self.piece_type_at(to_sqi);
+        if (4..=11).contains(&(flag as i32)) {
+            match flag {
+                4 | 8 => self.knights &= !to_sq_bb,
+                5 | 9 => self.bishops &= !to_sq_bb,
+                6 | 10 => self.rooks &= !to_sq_bb,
+                7 | 1 => self.queens &= !to_sq_bb,
+                _ => (),
+            };
+            self.pawns |= from_sq_bb;
+        } else {
+            // else: remove to_sq piece and place same piece type on from_sq
+            match to_sq_type {
+                Some(0) => {
+                    self.pawns &= !to_sq_bb;
+                    self.pawns |= from_sq_bb;
+                }
+                Some(1) => {
+                    self.knights &= !to_sq_bb;
+                    self.knights |= from_sq_bb;
+                }
+                Some(2) => {
+                    self.bishops &= !to_sq_bb;
+                    self.bishops |= from_sq_bb;
+                }
+                Some(3) => {
+                    self.rooks &= !to_sq_bb;
+                    self.rooks |= from_sq_bb;
+                }
+                Some(4) => {
+                    self.queens &= !to_sq_bb;
+                    self.queens |= from_sq_bb;
+                }
+                Some(5) => {
+                    self.kings &= !to_sq_bb;
+                    self.kings |= from_sq_bb;
+                }
+                _ => (),
+            };
+        }
+        // if castle: place rook on relevant corner square and remove from castled location.
+        if flag == 2 {
+            if self.side_to_move {
+                match to_sqi {
+                    58 => {
+                        self.rooks &= !0x0800000000000000;
+                        self.rooks |= 0x0100000000000000;
+                        self.black_pieces &= !0x0800000000000000;
+                        self.black_pieces |= 0x0100000000000000;
+                    }
+                    62 => {
+                        self.rooks &= !0x2000000000000000;
+                        self.rooks |= 0x8000000000000000;
+                        self.black_pieces &= !0x2000000000000000;
+                        self.black_pieces |= 0x8000000000000000;
+                    }
+                    _ => return Err("target square not valid castling target.".to_string()),
+                };
+            } else {
+                match to_sqi {
+                    2 => {
+                        self.rooks &= !0x0000000000000008;
+                        self.rooks |= 1;
+                        self.white_pieces &= !0x0000000000000008;
+                        self.white_pieces |= 1;
+                    }
+                    6 => {
+                        self.rooks &= !0x0000000000000020;
+                        self.rooks |= 0x0000000000000080;
+                        self.white_pieces &= !0x0000000000000020;
+                        self.white_pieces |= 0x0000000000000080;
+                    }
+                    _ => return Err("target square not valid castling target.".to_string()),
+                };
+            }
+        } else if flag == 3 {
+            // if en passant flag: place pawn of opposite color on correct square
+            if self.side_to_move {
+                self.pawns |= to_sq_bb << 8;
+                self.white_pieces |= to_sq_bb << 8;
+            } else {
+                self.pawns |= to_sq_bb >> 8;
+                self.black_pieces |= to_sq_bb >> 8;
+            }
+        } else if [1, 8, 9, 10, 11].contains(&flag) {
+            // else if any other capture flag: place capture type of color to move on to square
+            match undo_info.captured_type {
+                Some(0) => self.pawns |= to_sq_bb,
+                Some(1) => self.knights |= to_sq_bb,
+                Some(2) => self.bishops |= to_sq_bb,
+                Some(3) => self.rooks |= to_sq_bb,
+                Some(4) => self.queens |= to_sq_bb,
+                Some(5) => return Err("King cannot be captured.".to_string()),
+                None => {
+                    return Err(
+                        "If move flag is a capture, capture type cannot be None.".to_string()
+                    )
+                }
+                _ => return Err("Invalid piece type.".to_string()),
+            }
+            if self.side_to_move {
+                self.white_pieces |= to_sq_bb;
+            } else {
+                self.black_pieces |= to_sq_bb;
+            }
+        }
+        // update color bitboards (same for all cases: remove to_sq and add from_sq for opposite color as to_move)
+        if self.side_to_move {
+            self.black_pieces &= !to_sq_bb;
+            self.black_pieces |= from_sq_bb;
+        } else {
+            self.white_pieces &= !to_sq_bb;
+            self.white_pieces |= from_sq_bb;
+        }
+
+        // set board state = undo_info
+        (self.castling_rights, self.halfmove_clock) =
+            (undo_info.castling_rights, undo_info.halfmove_clock);
+        match undo_info.en_passant_square {
+            None => self.en_passant = 0,
+            _ => self.en_passant = 1 << undo_info.en_passant_square.unwrap(),
+        }
+        // if white is to move: full_move counter -= 1, set black to move
+        // else: set white to move
+        if self.side_to_move {
+            self.fullmove_number -= 1;
+            self.side_to_move = false;
+        } else {
+            self.side_to_move = true;
+        }
+        return Ok(());
     }
 }
 
@@ -1250,4 +1403,154 @@ pub fn test_make_move() {
 
     assert_eq!(board9, correct_resulting_board1);
     assert_eq!(move1_undo, correct_undo1);
+}
+
+#[test]
+pub fn test_unmake_move() {
+    let mut board1 = ChessBoard::initialize();
+    let board1_copy = board1.clone();
+
+    let move1_int = 0b0011000111000000; // e2-e4
+    let move1_undo_info = board1.make_move(move1_int).unwrap();
+    let move1_undo_result = board1.unmake_move(move1_int, &move1_undo_info);
+
+    assert_eq!(move1_undo_result, Ok(()));
+    assert_eq!(board1, board1_copy);
+
+    let mut board2 = ChessBoard::initialize_from_fen(
+        "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1",
+    )
+    .unwrap();
+    let board2_copy = board2.clone();
+
+    let move2_int = 0b1100001000000000; // a7 - a5
+    let move2_undo_info = board2.make_move(move2_int).unwrap();
+    let move2_undo_result = board2.unmake_move(move2_int, &move2_undo_info);
+
+    assert_eq!(move2_undo_result, Ok(()));
+    assert_eq!(board2, board2_copy);
+
+    let mut board3 = ChessBoard::initialize_from_fen(
+        "rnbqkb1r/pppppppp/8/5n2/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 1",
+    )
+    .unwrap();
+    let board3_copy = board3.clone();
+
+    let move3_int = 0b0111001001010001; // e4 x f5
+    let move3_undo_info = board3.make_move(move3_int).unwrap();
+    let move3_undo_result = board3.unmake_move(move3_int, &move3_undo_info);
+
+    assert_eq!(move3_undo_result, Ok(()));
+    assert_eq!(board3, board3_copy);
+
+    let mut board4 = ChessBoard::initialize_from_fen(
+        "rnbqkbnr/ppp1pppp/8/8/3pP3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1",
+    )
+    .unwrap();
+    let board4_copy = board4.clone();
+
+    let move4_int = 0b0110110101000011; // d4 x e3 en passant
+    let move4_undo_info = board4.make_move(move4_int).unwrap();
+    let move4_undo_result = board4.unmake_move(move4_int, &move4_undo_info);
+
+    assert_eq!(move4_undo_result, Ok(()));
+    assert_eq!(board4, board4_copy);
+
+    let mut board5 = ChessBoard::initialize_from_fen("k7/7P/8/8/8/8/8/K7 w - - 0 1").unwrap();
+    let board5_copy = board5.clone();
+
+    let move5_int = 0b1101111111110100; // h7 - h8 promote to knight
+    let move5_undo_info = board5.make_move(move5_int).unwrap();
+    let move5_undo_result = board5.unmake_move(move5_int, &move5_undo_info);
+
+    assert_eq!(move5_undo_result, Ok(()));
+    assert_eq!(board5, board5_copy);
+
+    let mut board5 = ChessBoard::initialize_from_fen("k7/7P/8/8/8/8/8/K7 w - - 0 1").unwrap();
+    let board5_copy = board5.clone();
+
+    let move5_int = 0b1101111111110101; // h7 - h8 promote to bishop
+    let move5_undo_info = board5.make_move(move5_int).unwrap();
+    let move5_undo_result = board5.unmake_move(move5_int, &move5_undo_info);
+
+    assert_eq!(move5_undo_result, Ok(()));
+    assert_eq!(board5, board5_copy);
+
+    let mut board5 = ChessBoard::initialize_from_fen("k7/7P/8/8/8/8/8/K7 w - - 0 1").unwrap();
+    let board5_copy = board5.clone();
+
+    let move5_int = 0b1101111111110110; // h7 - h8 promote to rook
+    let move5_undo_info = board5.make_move(move5_int).unwrap();
+    let move5_undo_result = board5.unmake_move(move5_int, &move5_undo_info);
+
+    assert_eq!(move5_undo_result, Ok(()));
+    assert_eq!(board5, board5_copy);
+
+    let mut board5 = ChessBoard::initialize_from_fen("k7/7P/8/8/8/8/8/K7 w - - 0 1").unwrap();
+    let board5_copy = board5.clone();
+
+    let move5_int = 0b1101111111110111; // h7 - h8 promote to queen
+    let move5_undo_info = board5.make_move(move5_int).unwrap();
+    let move5_undo_result = board5.unmake_move(move5_int, &move5_undo_info);
+
+    assert_eq!(move5_undo_result, Ok(()));
+    assert_eq!(board5, board5_copy);
+
+    let mut board6 = ChessBoard::initialize_from_fen("k5q1/7P/8/8/8/8/8/K7 w - - 0 1").unwrap();
+    let board6_copy = board6.clone();
+
+    let move6_int = 0b1101111111101011; // h7 x g8 promote to queen
+    let move6_undo_info = board6.make_move(move6_int).unwrap();
+    let move6_undo_result = board6.unmake_move(move6_int, &move6_undo_info);
+
+    assert_eq!(move6_undo_result, Ok(()));
+    assert_eq!(board6, board6_copy);
+
+    let mut board7 =
+        ChessBoard::initialize_from_fen("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1")
+            .unwrap();
+    let board7_copy = board7.clone();
+
+    let move7_int = 0b0001000001100010; // e1 - g1 white kingside castles
+    let move7_undo_info = board7.make_move(move7_int).unwrap();
+    let move7_undo_result = board7.unmake_move(move7_int, &move7_undo_info);
+
+    assert_eq!(move7_undo_result, Ok(()));
+    assert_eq!(board7, board7_copy);
+
+    let mut board7 =
+        ChessBoard::initialize_from_fen("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1")
+            .unwrap();
+    let board7_copy = board7.clone();
+
+    let move7_int = 0b0001000000100010; // e1 - c1 white queenside castles
+    let move7_undo_info = board7.make_move(move7_int).unwrap();
+    let move7_undo_result = board7.unmake_move(move7_int, &move7_undo_info);
+
+    assert_eq!(move7_undo_result, Ok(()));
+    assert_eq!(board7, board7_copy);
+
+    let mut board8 =
+        ChessBoard::initialize_from_fen("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R b KQkq - 0 1")
+            .unwrap();
+    let board8_copy = board8.clone();
+
+    let move8_int = 0b1111001111100010; // e8 - g8 black kingside castles
+    let move8_undo_info = board8.make_move(move8_int).unwrap();
+    let move8_undo_result = board8.unmake_move(move8_int, &move8_undo_info);
+
+    assert_eq!(move8_undo_result, Ok(()));
+    assert_eq!(board8, board8_copy);
+
+    let mut board8 =
+        ChessBoard::initialize_from_fen("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R b KQkq - 0 1")
+            .unwrap();
+    let board8_copy = board8.clone();
+
+    let move8_int = 0b1111001110100010; // e8 - c8 black queenside castles
+    let move8_undo_info = board8.make_move(move8_int).unwrap();
+    let move8_undo_result = board8.unmake_move(move8_int, &move8_undo_info);
+
+    assert_eq!(move8_undo_result, Ok(()));
+    assert_eq!(board8, board8_copy);
 }
