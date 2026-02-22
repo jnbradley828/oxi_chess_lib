@@ -242,6 +242,12 @@ pub fn squares_right(square: &u64) -> u64 {
     }
 }
 
+pub fn encode_move(from_square: u8, to_square: u8, flag: u8) -> u16 {
+    let encoded_move: u16 =
+        (((from_square as u16) << 10) | (to_square as u16) << 4) | (flag as u16);
+    return encoded_move;
+}
+
 // Unit Tests
 
 const A_SQUARES: [u64; 8] = [
@@ -562,4 +568,14 @@ fn test_squares_right() {
     let square2: &str = "g7";
     let sq2: u64 = square_to_bb(square2).unwrap();
     assert_eq!(squares_right(&sq2), 0x8080808080808080);
+}
+
+#[test]
+fn test_encode_move() {
+    let from: u8 = 30;
+    let to: u8 = 50;
+    let flag: u8 = 8;
+
+    let encoded_move = encode_move(from, to, flag);
+    assert_eq!(encoded_move, 0b0111101100101000);
 }
