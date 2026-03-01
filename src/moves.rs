@@ -54,10 +54,10 @@ pub fn pawn_attacks(color: &bool, square: &u64, board: &board::ChessBoard) -> u6
     let mut pawn_attacks: u64;
     if *color {
         pawn_attacks = WHITE_PAWN_ATTACKS[square.trailing_zeros() as usize];
-        pawn_attacks = pawn_attacks & !(board.white_pieces);
+        pawn_attacks &= !board.white_pieces;
     } else {
         pawn_attacks = BLACK_PAWN_ATTACKS[square.trailing_zeros() as usize];
-        pawn_attacks = pawn_attacks & !(board.black_pieces);
+        pawn_attacks &= !board.black_pieces;
     }
 
     pawn_attacks
@@ -581,6 +581,62 @@ pub fn get_pawn_plmoves(board: &board::ChessBoard) -> Vec<u16> {
     return moves;
 }
 
+pub fn get_nonpk_plmoves(board: &board::ChessBoard) -> Vec<u16> {
+    // generates pseudolegal moves for all non pawn/king pieces
+    let mut moves: Vec<u16> = Vec::new();
+
+    let to_move = board.side_to_move;
+    let color_mask: u64;
+    if board.side_to_move {
+        color_mask = board.white_pieces;
+    } else {
+        color_mask = board.black_pieces;
+    }
+
+    for (i, piece_mask) in [board.knights, board.bishops, board.rooks, board.queens]
+        .iter()
+        .enumerate()
+    {
+        // for piece type
+        let mut pieces: u64 = *piece_mask & color_mask;
+        while pieces != 0 {
+            // while there are pieces of this type left to check
+            let this_piece_i: u8 = pieces.trailing_zeros() as u8; // next piece to check
+            let this_piece_bb: u64 = 1 << this_piece_i;
+
+            // create attack bb for this piece.
+            let mut piece_attacks: u64;
+            match i {
+                0 => piece_attacks = knight_attacks(&to_move, &this_piece_bb, &board),
+                1 => piece_attacks = bishop_attacks(&to_move, &this_piece_bb, &board),
+                2 => piece_attacks = rook_attacks(&to_move, &this_piece_bb, &board),
+                3 => piece_attacks = queen_attacks(&to_move, &this_piece_bb, &board),
+                _ => piece_attacks = 0,
+            }
+
+            while piece_attacks != 0 {
+                // while there are attack squares left to encode
+                let this_target_i: u8 = piece_attacks.trailing_zeros() as u8;
+                let this_target_bb: u64 = 1 << piece_attacks.trailing_zeros();
+
+                if board.piece_type_at(this_target_i).is_some() {
+                    // if capture
+                    moves.push(utils::encode_move(this_piece_i, this_target_i, 1));
+                } else {
+                    // if normal move
+                    moves.push(utils::encode_move(this_piece_i, this_target_i, 0));
+                }
+
+                piece_attacks &= !this_target_bb;
+            }
+
+            pieces &= !this_piece_bb; // remove checked piece
+        }
+    }
+
+    return moves;
+}
+
 // pub fn get_pseudolegal_moves(board: &board::ChessBoard) -> Vec<u16> {}
 
 // unit tests
@@ -967,4 +1023,42 @@ fn test_get_pawn_plmoves() {
     pawn_pl_moves.sort();
 
     assert_eq!(pawn_pl_moves, correct_pawn_plmoves);
+}
+
+#[test]
+fn test_get_nonpk_plmoves() {
+    let board1 = ChessBoard::initialize(); // white in starting position
+    let mut correct_nonpk_plmoves: Vec<u16> = vec![
+        utils::encode_move(1, 16, 0),
+        utils::encode_move(1, 18, 0),
+        utils::encode_move(6, 23, 0),
+        utils::encode_move(6, 21, 0),
+    ];
+    correct_nonpk_plmoves.sort();
+
+    let mut nonpk_pl_moves = get_nonpk_plmoves(&board1);
+    nonpk_pl_moves.sort();
+
+    assert_eq!(nonpk_pl_moves, correct_nonpk_plmoves);
+
+    let board2 =
+        ChessBoard::initialize_from_fen("1q2k1r1/Ppp4b/8/5Pp1/4p3/8/8/K7 b - - 0 1").unwrap(); // black in random position
+    let mut correct_nonpk_plmoves: Vec<u16> = vec![
+        utils::encode_move(57, 56, 0), // 4 queen moves
+        utils::encode_move(57, 58, 0),
+        utils::encode_move(57, 59, 0),
+        utils::encode_move(57, 48, 1),
+        utils::encode_move(62, 61, 0), // 4 rook moves
+        utils::encode_move(62, 63, 0),
+        utils::encode_move(62, 54, 0),
+        utils::encode_move(62, 46, 0),
+        utils::encode_move(55, 46, 0), // 2 bishop moves
+        utils::encode_move(55, 37, 1),
+    ];
+    correct_nonpk_plmoves.sort();
+
+    let mut nonpk_pl_moves = get_nonpk_plmoves(&board2);
+    nonpk_pl_moves.sort();
+
+    assert_eq!(nonpk_pl_moves, correct_nonpk_plmoves);
 }
