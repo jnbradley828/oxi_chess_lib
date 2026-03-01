@@ -637,7 +637,81 @@ pub fn get_nonpk_plmoves(board: &board::ChessBoard) -> Vec<u16> {
     return moves;
 }
 
-// pub fn get_pseudolegal_moves(board: &board::ChessBoard) -> Vec<u16> {}
+fn get_king_plmoves(board: &board::ChessBoard) -> Vec<u16> {
+    let mut moves: Vec<u16> = Vec::new();
+    let king_bb: u64;
+    if board.side_to_move {
+        king_bb = board.kings & board.white_pieces;
+    } else {
+        king_bb = board.kings & board.black_pieces;
+    }
+    let king_i: u8 = king_bb.trailing_zeros() as u8;
+
+    // add moves based on attack squares
+    let mut king_attacks = king_attacks(&board.side_to_move, &king_bb, &board);
+    while king_attacks != 0 {
+        // while there are attack squares left to encode
+        let this_target_i: u8 = king_attacks.trailing_zeros() as u8;
+        let this_target_bb: u64 = 1 << king_attacks.trailing_zeros();
+
+        if board.piece_type_at(this_target_i).is_some() {
+            // if capture
+            moves.push(utils::encode_move(king_i, this_target_i, 1));
+        } else {
+            // if normal move
+            moves.push(utils::encode_move(king_i, this_target_i, 0));
+        }
+
+        king_attacks &= !this_target_bb;
+    }
+
+    // add castling moves
+    if board.side_to_move {
+        if board.castling_rights & 0b1000 != 0 {
+            // white kingside castle
+            if board.piece_type_at(5).is_none() && board.piece_type_at(6).is_none() {
+                moves.push(utils::encode_move(4, 6, 2));
+            }
+        }
+        if board.castling_rights & 0b0100 != 0 {
+            // white queenside castle
+            if board.piece_type_at(1).is_none()
+                && board.piece_type_at(2).is_none()
+                && board.piece_type_at(3).is_none()
+            {
+                moves.push(utils::encode_move(4, 2, 2));
+            }
+        }
+    } else {
+        if board.castling_rights & 0b0010 != 0 {
+            // black kingside castle
+            if board.piece_type_at(61).is_none() && board.piece_type_at(62).is_none() {
+                moves.push(utils::encode_move(60, 62, 2));
+            }
+        }
+        if board.castling_rights & 0b00001 != 0 {
+            // black queenside castle
+            if board.piece_type_at(57).is_none()
+                && board.piece_type_at(58).is_none()
+                && board.piece_type_at(59).is_none()
+            {
+                moves.push(utils::encode_move(60, 58, 2));
+            }
+        }
+    }
+
+    return moves;
+}
+
+pub fn get_pseudolegal_moves(board: &board::ChessBoard) -> Vec<u16> {
+    let pl_moves: Vec<u16> = [
+        get_pawn_plmoves(board),
+        get_nonpk_plmoves(board),
+        get_king_plmoves(board),
+    ]
+    .concat();
+    return pl_moves;
+}
 
 // unit tests
 
@@ -1061,4 +1135,38 @@ fn test_get_nonpk_plmoves() {
     nonpk_pl_moves.sort();
 
     assert_eq!(nonpk_pl_moves, correct_nonpk_plmoves);
+}
+
+#[test]
+fn test_get_king_plmoves() {
+    let mut board1 = ChessBoard::initialize_from_fen(
+        "r3kbnr/pppP1ppp/4p3/8/8/4P3/PPPp1PPP/RNBQK2R w KQkq - 0 1",
+    )
+    .unwrap();
+    let mut correct_king_plmoves: Vec<u16> = vec![
+        utils::encode_move(4, 12, 0),
+        utils::encode_move(4, 5, 0),
+        utils::encode_move(4, 11, 1),
+        utils::encode_move(4, 6, 2),
+    ];
+    correct_king_plmoves.sort();
+
+    let mut king_pl_moves = get_king_plmoves(&board1);
+    king_pl_moves.sort();
+
+    assert_eq!(king_pl_moves, correct_king_plmoves);
+
+    board1.make_move(utils::encode_move(8, 16, 0));
+    let mut correct_king_plmoves: Vec<u16> = vec![
+        utils::encode_move(60, 59, 0),
+        utils::encode_move(60, 52, 0),
+        utils::encode_move(60, 51, 1),
+        utils::encode_move(60, 58, 2),
+    ];
+    correct_king_plmoves.sort();
+
+    let mut king_pl_moves = get_king_plmoves(&board1);
+    king_pl_moves.sort();
+
+    assert_eq!(king_pl_moves, correct_king_plmoves);
 }

@@ -1,4 +1,4 @@
-use crate::{moves, utils};
+use crate::utils;
 
 /// Struct representing a chess board.
 /// We will let the least significant bit represent the a1 square.
@@ -30,7 +30,7 @@ pub struct UndoInfo {
 /// Creates a new chess board with the standard starting position.
 impl ChessBoard {
     pub fn initialize() -> Self {
-        let mut board = ChessBoard {
+        let board = ChessBoard {
             pawns: 0x00FF00000000FF00,   // pawns at ranks 2 & 7.
             knights: 0x4200000000000042, // knights at b1, g1, b8, & g8.
             bishops: 0x2400000000000024, // bishops at c1, f1, c8, & f8.
