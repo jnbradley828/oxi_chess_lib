@@ -752,6 +752,13 @@ pub fn test_plmove_legality(board: &mut board::ChessBoard, move_i: u16) -> bool 
         return true;
     }
 }
+
+pub fn get_legal_moves(board: &mut board::ChessBoard) -> Vec<u16> {
+    let mut legal_moves = get_pseudolegal_moves(board);
+    legal_moves.retain(|&m| test_plmove_legality(board, m));
+    return legal_moves;
+}
+
 // unit tests
 
 #[test]
@@ -1253,4 +1260,25 @@ fn test_test_plmove_legality() {
         test_plmove_legality(&mut board, encode_move(28, 37, 1)),
         false
     );
+}
+
+#[test]
+fn test_get_legal_moves() {
+    let mut board = ChessBoard::initialize();
+
+    let mut correct_legal_moves: Vec<u16> = Vec::new();
+    for from_sqi in 8..=15 {
+        correct_legal_moves.push(utils::encode_move(from_sqi, from_sqi + 8, 0));
+        correct_legal_moves.push(utils::encode_move(from_sqi, from_sqi + 16, 0));
+    }
+    correct_legal_moves.push(utils::encode_move(1, 16, 0));
+    correct_legal_moves.push(utils::encode_move(1, 18, 0));
+    correct_legal_moves.push(utils::encode_move(6, 23, 0));
+    correct_legal_moves.push(utils::encode_move(6, 21, 0));
+    correct_legal_moves.sort();
+
+    let mut legal_moves = get_legal_moves(&mut board);
+    legal_moves.sort();
+
+    assert_eq!(legal_moves, correct_legal_moves);
 }
