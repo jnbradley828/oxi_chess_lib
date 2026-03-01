@@ -529,68 +529,72 @@ fn test_square_to_bb() {
     );
 }
 
-#[test]
-fn test_squares_above() {
-    // a1
-    let square1: &str = "a1";
-    let sq1: u64 = square_to_bb(square1).unwrap();
-    assert_eq!(squares_above(&sq1), 0xFFFFFFFFFFFFFF00);
-    // g7
-    let square2: &str = "g7";
-    let sq2: u64 = square_to_bb(square2).unwrap();
-    assert_eq!(squares_above(&sq2), 0xFF00000000000000);
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn test_squares_above() {
+        // a1
+        let square1: &str = "a1";
+        let sq1: u64 = square_to_bb(square1).unwrap();
+        assert_eq!(squares_above(&sq1), 0xFFFFFFFFFFFFFF00);
+        // g7
+        let square2: &str = "g7";
+        let sq2: u64 = square_to_bb(square2).unwrap();
+        assert_eq!(squares_above(&sq2), 0xFF00000000000000);
+    }
 
-#[test]
-fn test_squares_below() {
-    // a1
-    let square1: &str = "a1";
-    let sq1: u64 = square_to_bb(square1).unwrap();
-    assert_eq!(squares_below(&sq1), 0);
-    // g7
-    let square2: &str = "g7";
-    let sq2: u64 = square_to_bb(square2).unwrap();
-    assert_eq!(squares_below(&sq2), 0x0000FFFFFFFFFFFF);
-}
+    #[test]
+    fn test_squares_below() {
+        // a1
+        let square1: &str = "a1";
+        let sq1: u64 = square_to_bb(square1).unwrap();
+        assert_eq!(squares_below(&sq1), 0);
+        // g7
+        let square2: &str = "g7";
+        let sq2: u64 = square_to_bb(square2).unwrap();
+        assert_eq!(squares_below(&sq2), 0x0000FFFFFFFFFFFF);
+    }
 
-#[test]
-fn test_squares_left() {
-    // a1
-    let square1: &str = "a1";
-    let sq1: u64 = square_to_bb(square1).unwrap();
-    assert_eq!(squares_left(&sq1), 0);
-    // g7
-    let square2: &str = "g7";
-    let sq2: u64 = square_to_bb(square2).unwrap();
-    assert_eq!(squares_left(&sq2), 0x3F3F3F3F3F3F3F3F);
-}
+    #[test]
+    fn test_squares_left() {
+        // a1
+        let square1: &str = "a1";
+        let sq1: u64 = square_to_bb(square1).unwrap();
+        assert_eq!(squares_left(&sq1), 0);
+        // g7
+        let square2: &str = "g7";
+        let sq2: u64 = square_to_bb(square2).unwrap();
+        assert_eq!(squares_left(&sq2), 0x3F3F3F3F3F3F3F3F);
+    }
 
-#[test]
-fn test_squares_right() {
-    // a1
-    let square1: &str = "a1";
-    let sq1: u64 = square_to_bb(square1).unwrap();
-    assert_eq!(squares_right(&sq1), 0xFEFEFEFEFEFEFEFE);
-    // g7
-    let square2: &str = "g7";
-    let sq2: u64 = square_to_bb(square2).unwrap();
-    assert_eq!(squares_right(&sq2), 0x8080808080808080);
-}
+    #[test]
+    fn test_squares_right() {
+        // a1
+        let square1: &str = "a1";
+        let sq1: u64 = square_to_bb(square1).unwrap();
+        assert_eq!(squares_right(&sq1), 0xFEFEFEFEFEFEFEFE);
+        // g7
+        let square2: &str = "g7";
+        let sq2: u64 = square_to_bb(square2).unwrap();
+        assert_eq!(squares_right(&sq2), 0x8080808080808080);
+    }
 
-#[test]
-fn test_encode_move() {
-    let from: u8 = 30;
-    let to: u8 = 50;
-    let flag: u8 = 8;
+    #[test]
+    fn test_encode_move() {
+        let from: u8 = 30;
+        let to: u8 = 50;
+        let flag: u8 = 8;
 
-    let encoded_move = encode_move(from, to, flag);
-    assert_eq!(encoded_move, 0b0111101100101000);
-}
+        let encoded_move = encode_move(from, to, flag);
+        assert_eq!(encoded_move, 0b0111101100101000);
+    }
 
-#[test]
-fn test_decode_move() {
-    let move_i = 0b1100110101011011;
-    let move_i_decoded: [u8; 3] = [0b110011, 0b010101, 0b1011];
+    #[test]
+    fn test_decode_move() {
+        let move_i = 0b1100110101011011;
+        let move_i_decoded: [u8; 3] = [0b110011, 0b010101, 0b1011];
 
-    assert_eq!(decode_move(move_i), move_i_decoded);
+        assert_eq!(decode_move(move_i), move_i_decoded);
+    }
 }

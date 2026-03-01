@@ -760,525 +760,528 @@ pub fn get_legal_moves(board: &mut board::ChessBoard) -> Vec<u16> {
 }
 
 // unit tests
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn test_pawn_attacks() {
+        let empty_board = board::ChessBoard::empty();
 
-#[test]
-fn test_pawn_attacks() {
-    let empty_board = board::ChessBoard::empty();
+        // white pawn on b5
+        let square1: u64 = utils::square_to_bb("b5").unwrap(); // b5 bit = 1.
+        let square1_pawn_attacks = pawn_attacks(&true, &square1, &empty_board);
+        assert_eq!(square1_pawn_attacks, 0x0000050000000000); // a6 and c6 bit = 1.
 
-    // white pawn on b5
-    let square1: u64 = utils::square_to_bb("b5").unwrap(); // b5 bit = 1.
-    let square1_pawn_attacks = pawn_attacks(&true, &square1, &empty_board);
-    assert_eq!(square1_pawn_attacks, 0x0000050000000000); // a6 and c6 bit = 1.
+        // black pawn on b5
+        let square2: u64 = utils::square_to_bb("b5").unwrap(); // b5 bit = 1.
+        let square2_pawn_attacks = pawn_attacks(&false, &square2, &empty_board);
+        assert_eq!(square2_pawn_attacks, 0x0000000005000000); // a4 and c4 bit = 1.
 
-    // black pawn on b5
-    let square2: u64 = utils::square_to_bb("b5").unwrap(); // b5 bit = 1.
-    let square2_pawn_attacks = pawn_attacks(&false, &square2, &empty_board);
-    assert_eq!(square2_pawn_attacks, 0x0000000005000000); // a4 and c4 bit = 1.
+        // white pawn on a1
+        let square3: u64 = utils::square_to_bb("a1").unwrap(); // a1 bit = 1.
+        let square3_pawn_attacks = pawn_attacks(&true, &square3, &empty_board);
+        assert_eq!(square3_pawn_attacks, 0x0000000000000200); // b2 bit = 1.
 
-    // white pawn on a1
-    let square3: u64 = utils::square_to_bb("a1").unwrap(); // a1 bit = 1.
-    let square3_pawn_attacks = pawn_attacks(&true, &square3, &empty_board);
-    assert_eq!(square3_pawn_attacks, 0x0000000000000200); // b2 bit = 1.
+        // black pawn on a8
+        let square4: u64 = utils::square_to_bb("a8").unwrap(); // a8 bit = 1.
+        let square4_pawn_attacks = pawn_attacks(&false, &square4, &empty_board);
+        assert_eq!(square4_pawn_attacks, 0x0002000000000000); // b7 bit = 1.
 
-    // black pawn on a8
-    let square4: u64 = utils::square_to_bb("a8").unwrap(); // a8 bit = 1.
-    let square4_pawn_attacks = pawn_attacks(&false, &square4, &empty_board);
-    assert_eq!(square4_pawn_attacks, 0x0002000000000000); // b7 bit = 1.
+        // white pawn on h1
+        let square5: u64 = utils::square_to_bb("h1").unwrap(); // h1 bit = 1.
+        let square5_pawn_attacks = pawn_attacks(&true, &square5, &empty_board);
+        assert_eq!(square5_pawn_attacks, 0x0000000000004000); // g2 bit = 1.
 
-    // white pawn on h1
-    let square5: u64 = utils::square_to_bb("h1").unwrap(); // h1 bit = 1.
-    let square5_pawn_attacks = pawn_attacks(&true, &square5, &empty_board);
-    assert_eq!(square5_pawn_attacks, 0x0000000000004000); // g2 bit = 1.
+        // black pawn on h8
+        let square6: u64 = utils::square_to_bb("h8").unwrap(); // h8 bit = 1.
+        let square6_pawn_attacks = pawn_attacks(&false, &square6, &empty_board);
+        assert_eq!(square6_pawn_attacks, 0x0040000000000000); // g7 bit = 1.
 
-    // black pawn on h8
-    let square6: u64 = utils::square_to_bb("h8").unwrap(); // h8 bit = 1.
-    let square6_pawn_attacks = pawn_attacks(&false, &square6, &empty_board);
-    assert_eq!(square6_pawn_attacks, 0x0040000000000000); // g7 bit = 1.
+        let non_empty_board =
+            board::ChessBoard::initialize_from_fen("k7/1p6/b7/8/8/B7/1P6/K7 b KQkq - 0 1").unwrap();
 
-    let non_empty_board =
-        board::ChessBoard::initialize_from_fen("k7/1p6/b7/8/8/B7/1P6/K7 b KQkq - 0 1").unwrap();
-
-    // white pawn blocked by its own piece.
-    let square7: u64 = utils::square_to_bb("b2").unwrap();
-    let square7_pawn_attacks = pawn_attacks(&true, &square7, &non_empty_board);
-    assert_eq!(square7_pawn_attacks, 0x0000000000040000);
-    // black pawn blocked by its own piece.
-    let square8: u64 = utils::square_to_bb("b7").unwrap();
-    let square8_pawn_attacks = pawn_attacks(&false, &square8, &non_empty_board);
-    assert_eq!(square8_pawn_attacks, 0x0000040000000000);
-}
-
-#[test]
-fn test_knight_attacks() {
-    // test squares: a1, a2, b1, b2, g1, g2, h1, h2, a7, a8, b7, b8, g7, g8, h7, h8, d4
-    let empty_board = board::ChessBoard::empty();
-
-    // a1:
-    let square1 = utils::square_to_bb("a1").unwrap();
-    let sq1_knight_attacks = knight_attacks(&true, &square1, &empty_board);
-    assert_eq!(sq1_knight_attacks, 0x0000000000020400);
-
-    // a2:
-    let square2 = utils::square_to_bb("a2").unwrap();
-    let sq2_knight_attacks = knight_attacks(&true, &square2, &empty_board);
-    assert_eq!(sq2_knight_attacks, 0x0000000002040004);
-
-    // b1:
-    let square3 = utils::square_to_bb("b1").unwrap();
-    let sq3_knight_attacks = knight_attacks(&true, &square3, &empty_board);
-    assert_eq!(sq3_knight_attacks, 0x0000000000050800);
-
-    // b2:
-    let square4 = utils::square_to_bb("b2").unwrap();
-    let sq4_knight_attacks = knight_attacks(&true, &square4, &empty_board);
-    assert_eq!(sq4_knight_attacks, 0x0000000005080008);
-
-    // g1:
-    let square5 = utils::square_to_bb("g1").unwrap();
-    let sq5_knight_attacks = knight_attacks(&true, &square5, &empty_board);
-    assert_eq!(sq5_knight_attacks, 0x0000000000A01000);
-
-    // g2:
-    let square6 = utils::square_to_bb("g2").unwrap();
-    let sq6_knight_attacks = knight_attacks(&true, &square6, &empty_board);
-    assert_eq!(sq6_knight_attacks, 0x00000000A0100010);
-
-    // h1:
-    let square7 = utils::square_to_bb("h1").unwrap();
-    let sq7_knight_attacks = knight_attacks(&true, &square7, &empty_board);
-    assert_eq!(sq7_knight_attacks, 0x0000000000402000);
-
-    // h2:
-    let square8 = utils::square_to_bb("h2").unwrap();
-    let sq8_knight_attacks = knight_attacks(&true, &square8, &empty_board);
-    assert_eq!(sq8_knight_attacks, 0x0000000040200020);
-
-    // a7:
-    let square9 = utils::square_to_bb("a7").unwrap();
-    let sq9_knight_attacks = knight_attacks(&true, &square9, &empty_board);
-    assert_eq!(sq9_knight_attacks, 0x0400040200000000);
-
-    // a8:
-    let square10 = utils::square_to_bb("a8").unwrap();
-    let sq10_knight_attacks = knight_attacks(&true, &square10, &empty_board);
-    assert_eq!(sq10_knight_attacks, 0x0004020000000000);
-
-    // b7:
-    let square11 = utils::square_to_bb("b7").unwrap();
-    let sq11_knight_attacks = knight_attacks(&true, &square11, &empty_board);
-    assert_eq!(sq11_knight_attacks, 0x0800080500000000);
-
-    let starting_board = board::ChessBoard::initialize();
-
-    // b1 from starting position (exclude d2)
-    let square12 = utils::square_to_bb("b1").unwrap();
-    let sq12_knight_attacks = knight_attacks(&true, &square12, &starting_board);
-    assert_eq!(sq12_knight_attacks, 0x0000000000050000);
-
-    // b8 from starting position (exclude d7)
-    let square13 = utils::square_to_bb("b8").unwrap();
-    let sq13_knight_attacks = knight_attacks(&false, &square13, &starting_board);
-    assert_eq!(sq13_knight_attacks, 0x0000050000000000);
-}
-
-#[test]
-fn test_bishop_attacks() {
-    let empty_board = board::ChessBoard::empty();
-    // a1
-    let square1 = utils::square_to_bb("a1").unwrap();
-    let sq1_bishop_attacks = bishop_attacks(&true, &square1, &empty_board);
-    assert_eq!(sq1_bishop_attacks, 0x8040201008040200);
-    // // a8
-    let square2 = utils::square_to_bb("a8").unwrap();
-    let sq2_bishop_attacks = bishop_attacks(&true, &square2, &empty_board);
-    assert_eq!(sq2_bishop_attacks, 0x0002040810204080);
-    // // h1
-    let square3 = utils::square_to_bb("h1").unwrap();
-    let sq3_bishop_attacks = bishop_attacks(&true, &square3, &empty_board);
-    assert_eq!(sq3_bishop_attacks, 0x0102040810204000);
-    // // h8
-    let square4 = utils::square_to_bb("h8").unwrap();
-    let sq4_bishop_attacks = bishop_attacks(&true, &square4, &empty_board);
-    assert_eq!(sq4_bishop_attacks, 0x0040201008040201);
-    // // d4
-    let square5 = utils::square_to_bb("d4").unwrap();
-    let sq5_bishop_attacks = bishop_attacks(&true, &square5, &empty_board);
-    assert_eq!(sq5_bishop_attacks, 0x8041221400142241);
-}
-
-#[test]
-fn test_rook_attacks() {
-    let empty_board = board::ChessBoard::empty();
-    // a1
-    let square1 = utils::square_to_bb("a1").unwrap();
-    let sq1_rook_attacks = rook_attacks(&true, &square1, &empty_board);
-    assert_eq!(sq1_rook_attacks, 0x01010101010101FE);
-    // a8
-    let square2 = utils::square_to_bb("a8").unwrap();
-    let sq2_rook_attacks = rook_attacks(&true, &square2, &empty_board);
-    assert_eq!(sq2_rook_attacks, 0xFE01010101010101);
-    // h1
-    let square3 = utils::square_to_bb("h1").unwrap();
-    let sq3_rook_attacks = rook_attacks(&true, &square3, &empty_board);
-    assert_eq!(sq3_rook_attacks, 0x808080808080807F);
-    // h8
-    let square4 = utils::square_to_bb("h8").unwrap();
-    let sq4_rook_attacks = rook_attacks(&true, &square4, &empty_board);
-    assert_eq!(sq4_rook_attacks, 0x7F80808080808080);
-    // d4
-    let square5 = utils::square_to_bb("d4").unwrap();
-    let sq5_rook_attacks = rook_attacks(&true, &square5, &empty_board);
-    assert_eq!(sq5_rook_attacks, 0x08080808F7080808);
-}
-
-#[test]
-fn test_queen_attacks() {
-    let empty_board = board::ChessBoard::empty();
-
-    //a1
-    let square1 = utils::square_to_bb("a1").unwrap();
-    let sq1_queen_attacks = queen_attacks(&true, &square1, &empty_board);
-    assert_eq!(sq1_queen_attacks, (0x01010101010101FE | 0x8040201008040200));
-    // a8
-    let square2 = utils::square_to_bb("a8").unwrap();
-    let sq2_queen_attacks = queen_attacks(&true, &square2, &empty_board);
-    assert_eq!(sq2_queen_attacks, (0xFE01010101010101 | 0x0002040810204080));
-    // h1
-    let square3 = utils::square_to_bb("h1").unwrap();
-    let sq3_queen_attacks = queen_attacks(&true, &square3, &empty_board);
-    assert_eq!(sq3_queen_attacks, (0x808080808080807F | 0x0102040810204000));
-    // h8
-    let square4 = utils::square_to_bb("h8").unwrap();
-    let sq4_queen_attacks = queen_attacks(&true, &square4, &empty_board);
-    assert_eq!(sq4_queen_attacks, (0x7F80808080808080 | 0x0040201008040201));
-    // d4
-    let square5 = utils::square_to_bb("d4").unwrap();
-    let sq5_queen_attacks = queen_attacks(&true, &square5, &empty_board);
-    assert_eq!(sq5_queen_attacks, (0x08080808F7080808 | 0x8041221400142241));
-}
-
-#[test]
-fn test_king_attacks() {
-    let board1 = board::ChessBoard::initialize();
-    // white king starting position
-    let square1 = utils::square_to_bb("e1").unwrap();
-    let sq1_king_attacks = king_attacks(&true, &square1, &board1);
-    assert_eq!(sq1_king_attacks, 0);
-    // black king starting position
-    let square2 = utils::square_to_bb("e8").unwrap();
-    let sq2_king_attacks = king_attacks(&false, &square2, &board1);
-    assert_eq!(sq2_king_attacks, 0);
-
-    let board2 = board::ChessBoard::empty();
-    // white king a1 empty board
-    let square3 = utils::square_to_bb("a1").unwrap();
-    let sq3_king_attacks = king_attacks(&true, &square3, &board2);
-    assert_eq!(sq3_king_attacks, 0x0000000000000302);
-    // black king a1 empty board
-    let square3 = utils::square_to_bb("a1").unwrap();
-    let sq3_king_attacks = king_attacks(&false, &square3, &board2);
-    assert_eq!(sq3_king_attacks, 0x0000000000000302);
-}
-
-#[test]
-fn test_board_attacks() {
-    // 2 pieces of each type (except king), black to move
-    let board1 =
-        board::ChessBoard::initialize_from_fen("rnbq1p2/rnbq1pk1/8/8/8/8/8/K7 b KQkq - 0 1")
-            .unwrap();
-    let board_attacks_test = board_attacks(&board1, false);
-    let board_attacks_correct: u64 = 0xD090FF7FE9C98909;
-    assert_eq!(board_attacks_test, board_attacks_correct);
-
-    // 2 pieces of each type (except king), white to move
-    let board2 =
-        board::ChessBoard::initialize_from_fen("k7/8/8/8/8/8/RNBQ1PK1/RNBQ1P2 w KQkq - 0 1")
-            .unwrap();
-    let board_attacks_test = board_attacks(&board2, true);
-    let board_attacks_correct: u64 = 0x0989C9E97FFF90D0;
-    assert_eq!(board_attacks_test, board_attacks_correct);
-}
-
-#[test]
-fn test_ray_generation() {
-    let square1 = utils::square_to_bb("e4").unwrap();
-    let rays: [u64; 8] = [
-        generate_north_ray(square1),
-        generate_ne_ray(square1),
-        generate_east_ray(square1),
-        generate_se_ray(square1),
-        generate_south_ray(square1),
-        generate_sw_ray(square1),
-        generate_west_ray(square1),
-        generate_nw_ray(square1),
-    ];
-
-    assert_eq!(
-        rays,
-        [
-            0x1010101000000000,
-            0x0080402000000000,
-            0x00000000E0000000,
-            0x0000000000204080,
-            0x0000000000101010,
-            0x0000000000080402,
-            0x000000000F000000,
-            0x0102040800000000
-        ]
-    );
-}
-
-#[test]
-fn test_check_along_ray() {
-    // east ray from e4, friendly piece on g4.
-    let square1 = utils::square_to_bb("e4").unwrap();
-    let e_ray = generate_east_ray(square1);
-    let friendly_pieces = 0x0000000040000000;
-    let enemy_pieces = 0;
-    assert_eq!(
-        check_along_ray(square1, e_ray, friendly_pieces, enemy_pieces),
-        0x0000000020000000
-    );
-
-    // east ray from e4, enemy piece on g4.
-    let enemy_pieces = 0x0000000040000000;
-    let friendly_pieces = 0;
-    assert_eq!(
-        check_along_ray(square1, e_ray, friendly_pieces, enemy_pieces),
-        0x0000000060000000
-    );
-
-    // west ray from e4, friendly piece on a4.
-    let w_ray = generate_west_ray(square1);
-    let friendly_pieces = 0x0000000001000000;
-    let enemy_pieces = 0;
-    assert_eq!(
-        check_along_ray(square1, w_ray, friendly_pieces, enemy_pieces),
-        0x000000000E000000
-    );
-
-    // west ray from e4, enemy piece on a4.
-    let enemy_pieces = 0x0000000001000000;
-    let friendly_pieces = 0;
-    assert_eq!(
-        check_along_ray(square1, w_ray, friendly_pieces, enemy_pieces),
-        0x000000000F000000
-    );
-
-    // ne ray from e4, enemy piece on g6
-    let ne_ray = generate_ne_ray(square1);
-    let enemy_pieces = 0x0000400000000000;
-    let friendly_pieces = 0;
-    assert_eq!(
-        check_along_ray(square1, ne_ray, friendly_pieces, enemy_pieces),
-        0x0000402000000000
-    );
-
-    // nw ray from e4, friendly piece on a8;
-    let nw_ray = generate_nw_ray(square1);
-    let enemy_pieces = 0;
-    let friendly_pieces = 0x0100000000000000;
-    assert_eq!(
-        check_along_ray(square1, nw_ray, friendly_pieces, enemy_pieces),
-        0x0002040800000000
-    );
-
-    // se ray from e4, enemy piece on g2
-    let se_ray = generate_se_ray(square1);
-    let enemy_pieces = 0x0000000000004000;
-    let friendly_pieces = 0;
-    assert_eq!(
-        check_along_ray(square1, se_ray, friendly_pieces, enemy_pieces),
-        0x0000000000204000
-    );
-
-    // sw ray from e4, friendly piece on b1
-    let sw_ray = generate_sw_ray(square1);
-    let enemy_pieces = 0;
-    let friendly_pieces = 0x0000000000000002;
-    assert_eq!(
-        check_along_ray(square1, sw_ray, friendly_pieces, enemy_pieces),
-        0x0000000000080400
-    );
-}
-
-#[test]
-fn test_get_pawn_plmoves() {
-    let board1 = ChessBoard::initialize(); // white in starting position
-    let mut correct_pawn_plmoves: Vec<u16> = Vec::new();
-
-    for from_sqi in 8..=15 {
-        correct_pawn_plmoves.push(utils::encode_move(from_sqi, from_sqi + 8, 0));
-        correct_pawn_plmoves.push(utils::encode_move(from_sqi, from_sqi + 16, 0));
+        // white pawn blocked by its own piece.
+        let square7: u64 = utils::square_to_bb("b2").unwrap();
+        let square7_pawn_attacks = pawn_attacks(&true, &square7, &non_empty_board);
+        assert_eq!(square7_pawn_attacks, 0x0000000000040000);
+        // black pawn blocked by its own piece.
+        let square8: u64 = utils::square_to_bb("b7").unwrap();
+        let square8_pawn_attacks = pawn_attacks(&false, &square8, &non_empty_board);
+        assert_eq!(square8_pawn_attacks, 0x0000040000000000);
     }
-    correct_pawn_plmoves.sort();
 
-    let mut pawn_pl_moves = get_pawn_plmoves(&board1);
-    pawn_pl_moves.sort();
+    #[test]
+    fn test_knight_attacks() {
+        // test squares: a1, a2, b1, b2, g1, g2, h1, h2, a7, a8, b7, b8, g7, g8, h7, h8, d4
+        let empty_board = board::ChessBoard::empty();
 
-    assert_eq!(pawn_pl_moves, correct_pawn_plmoves);
+        // a1:
+        let square1 = utils::square_to_bb("a1").unwrap();
+        let sq1_knight_attacks = knight_attacks(&true, &square1, &empty_board);
+        assert_eq!(sq1_knight_attacks, 0x0000000000020400);
 
-    let board2 = ChessBoard::initialize_from_fen("k7/8/8/8/8/8/6p1/K6N b - - 0 1").unwrap(); // black promotions test
-    let mut correct_pawn_plmoves: Vec<u16> = Vec::new();
+        // a2:
+        let square2 = utils::square_to_bb("a2").unwrap();
+        let sq2_knight_attacks = knight_attacks(&true, &square2, &empty_board);
+        assert_eq!(sq2_knight_attacks, 0x0000000002040004);
 
-    for flag in 8..=11 {
-        correct_pawn_plmoves.push(utils::encode_move(14, 7, flag));
+        // b1:
+        let square3 = utils::square_to_bb("b1").unwrap();
+        let sq3_knight_attacks = knight_attacks(&true, &square3, &empty_board);
+        assert_eq!(sq3_knight_attacks, 0x0000000000050800);
+
+        // b2:
+        let square4 = utils::square_to_bb("b2").unwrap();
+        let sq4_knight_attacks = knight_attacks(&true, &square4, &empty_board);
+        assert_eq!(sq4_knight_attacks, 0x0000000005080008);
+
+        // g1:
+        let square5 = utils::square_to_bb("g1").unwrap();
+        let sq5_knight_attacks = knight_attacks(&true, &square5, &empty_board);
+        assert_eq!(sq5_knight_attacks, 0x0000000000A01000);
+
+        // g2:
+        let square6 = utils::square_to_bb("g2").unwrap();
+        let sq6_knight_attacks = knight_attacks(&true, &square6, &empty_board);
+        assert_eq!(sq6_knight_attacks, 0x00000000A0100010);
+
+        // h1:
+        let square7 = utils::square_to_bb("h1").unwrap();
+        let sq7_knight_attacks = knight_attacks(&true, &square7, &empty_board);
+        assert_eq!(sq7_knight_attacks, 0x0000000000402000);
+
+        // h2:
+        let square8 = utils::square_to_bb("h2").unwrap();
+        let sq8_knight_attacks = knight_attacks(&true, &square8, &empty_board);
+        assert_eq!(sq8_knight_attacks, 0x0000000040200020);
+
+        // a7:
+        let square9 = utils::square_to_bb("a7").unwrap();
+        let sq9_knight_attacks = knight_attacks(&true, &square9, &empty_board);
+        assert_eq!(sq9_knight_attacks, 0x0400040200000000);
+
+        // a8:
+        let square10 = utils::square_to_bb("a8").unwrap();
+        let sq10_knight_attacks = knight_attacks(&true, &square10, &empty_board);
+        assert_eq!(sq10_knight_attacks, 0x0004020000000000);
+
+        // b7:
+        let square11 = utils::square_to_bb("b7").unwrap();
+        let sq11_knight_attacks = knight_attacks(&true, &square11, &empty_board);
+        assert_eq!(sq11_knight_attacks, 0x0800080500000000);
+
+        let starting_board = board::ChessBoard::initialize();
+
+        // b1 from starting position (exclude d2)
+        let square12 = utils::square_to_bb("b1").unwrap();
+        let sq12_knight_attacks = knight_attacks(&true, &square12, &starting_board);
+        assert_eq!(sq12_knight_attacks, 0x0000000000050000);
+
+        // b8 from starting position (exclude d7)
+        let square13 = utils::square_to_bb("b8").unwrap();
+        let sq13_knight_attacks = knight_attacks(&false, &square13, &starting_board);
+        assert_eq!(sq13_knight_attacks, 0x0000050000000000);
     }
-    for flag in 4..=7 {
-        correct_pawn_plmoves.push(utils::encode_move(14, 6, flag));
+
+    #[test]
+    fn test_bishop_attacks() {
+        let empty_board = board::ChessBoard::empty();
+        // a1
+        let square1 = utils::square_to_bb("a1").unwrap();
+        let sq1_bishop_attacks = bishop_attacks(&true, &square1, &empty_board);
+        assert_eq!(sq1_bishop_attacks, 0x8040201008040200);
+        // // a8
+        let square2 = utils::square_to_bb("a8").unwrap();
+        let sq2_bishop_attacks = bishop_attacks(&true, &square2, &empty_board);
+        assert_eq!(sq2_bishop_attacks, 0x0002040810204080);
+        // // h1
+        let square3 = utils::square_to_bb("h1").unwrap();
+        let sq3_bishop_attacks = bishop_attacks(&true, &square3, &empty_board);
+        assert_eq!(sq3_bishop_attacks, 0x0102040810204000);
+        // // h8
+        let square4 = utils::square_to_bb("h8").unwrap();
+        let sq4_bishop_attacks = bishop_attacks(&true, &square4, &empty_board);
+        assert_eq!(sq4_bishop_attacks, 0x0040201008040201);
+        // // d4
+        let square5 = utils::square_to_bb("d4").unwrap();
+        let sq5_bishop_attacks = bishop_attacks(&true, &square5, &empty_board);
+        assert_eq!(sq5_bishop_attacks, 0x8041221400142241);
     }
-    correct_pawn_plmoves.sort();
 
-    let mut pawn_pl_moves = get_pawn_plmoves(&board2);
-    pawn_pl_moves.sort();
-
-    assert_eq!(pawn_pl_moves, correct_pawn_plmoves);
-
-    let board3 = ChessBoard::initialize_from_fen("k7/8/8/4pP2/8/8/8/K7 w - e6 0 2").unwrap(); // white en passant
-    let mut correct_pawn_plmoves: Vec<u16> =
-        vec![utils::encode_move(37, 45, 0), utils::encode_move(37, 44, 3)];
-    correct_pawn_plmoves.sort();
-
-    let mut pawn_pl_moves = get_pawn_plmoves(&board3);
-    pawn_pl_moves.sort();
-
-    assert_eq!(pawn_pl_moves, correct_pawn_plmoves);
-}
-
-#[test]
-fn test_get_nonpk_plmoves() {
-    let board1 = ChessBoard::initialize(); // white in starting position
-    let mut correct_nonpk_plmoves: Vec<u16> = vec![
-        utils::encode_move(1, 16, 0),
-        utils::encode_move(1, 18, 0),
-        utils::encode_move(6, 23, 0),
-        utils::encode_move(6, 21, 0),
-    ];
-    correct_nonpk_plmoves.sort();
-
-    let mut nonpk_pl_moves = get_nonpk_plmoves(&board1);
-    nonpk_pl_moves.sort();
-
-    assert_eq!(nonpk_pl_moves, correct_nonpk_plmoves);
-
-    let board2 =
-        ChessBoard::initialize_from_fen("1q2k1r1/Ppp4b/8/5Pp1/4p3/8/8/K7 b - - 0 1").unwrap(); // black in random position
-    let mut correct_nonpk_plmoves: Vec<u16> = vec![
-        utils::encode_move(57, 56, 0), // 4 queen moves
-        utils::encode_move(57, 58, 0),
-        utils::encode_move(57, 59, 0),
-        utils::encode_move(57, 48, 1),
-        utils::encode_move(62, 61, 0), // 4 rook moves
-        utils::encode_move(62, 63, 0),
-        utils::encode_move(62, 54, 0),
-        utils::encode_move(62, 46, 0),
-        utils::encode_move(55, 46, 0), // 2 bishop moves
-        utils::encode_move(55, 37, 1),
-    ];
-    correct_nonpk_plmoves.sort();
-
-    let mut nonpk_pl_moves = get_nonpk_plmoves(&board2);
-    nonpk_pl_moves.sort();
-
-    assert_eq!(nonpk_pl_moves, correct_nonpk_plmoves);
-}
-
-#[test]
-fn test_get_king_plmoves() {
-    let mut board1 = ChessBoard::initialize_from_fen(
-        "r3kbnr/pppP1ppp/4p3/8/8/4P3/PPPp1PPP/RNBQK2R w KQkq - 0 1",
-    )
-    .unwrap();
-    let mut correct_king_plmoves: Vec<u16> = vec![
-        utils::encode_move(4, 12, 0),
-        utils::encode_move(4, 5, 0),
-        utils::encode_move(4, 11, 1),
-        utils::encode_move(4, 6, 2),
-    ];
-    correct_king_plmoves.sort();
-
-    let mut king_pl_moves = get_king_plmoves(&board1);
-    king_pl_moves.sort();
-
-    assert_eq!(king_pl_moves, correct_king_plmoves);
-
-    board1.make_move(utils::encode_move(8, 16, 0));
-    let mut correct_king_plmoves: Vec<u16> = vec![
-        utils::encode_move(60, 59, 0),
-        utils::encode_move(60, 52, 0),
-        utils::encode_move(60, 51, 1),
-        utils::encode_move(60, 58, 2),
-    ];
-    correct_king_plmoves.sort();
-
-    let mut king_pl_moves = get_king_plmoves(&board1);
-    king_pl_moves.sort();
-
-    assert_eq!(king_pl_moves, correct_king_plmoves);
-}
-
-#[test]
-fn test_test_plmove_legality() {
-    let mut board = board::ChessBoard::initialize_from_fen(
-        "r3kbnr/pppP1ppp/4p3/8/8/4P3/PPPp1PPP/RNBQK2R w KQkq - 0 1",
-    )
-    .unwrap();
-    assert_eq!(
-        test_plmove_legality(&mut board, encode_move(4, 6, 2)),
-        false
-    );
-
-    let mut board = board::ChessBoard::initialize_from_fen(
-        "r3kbnr/pppP1ppp/4p3/8/8/4P3/PPP2PPP/RNBQK2R w KQkq - 0 1",
-    )
-    .unwrap();
-    assert_eq!(test_plmove_legality(&mut board, encode_move(4, 6, 2)), true);
-
-    let mut board = board::ChessBoard::initialize_from_fen(
-        "r3kbnr/pppP1ppp/4p3/8/8/4P3/PPP2PPP/RNBQK2R b KQkq - 0 1",
-    )
-    .unwrap();
-    assert_eq!(
-        test_plmove_legality(&mut board, encode_move(60, 58, 2)),
-        false
-    );
-
-    let mut board = board::ChessBoard::initialize_from_fen(
-        "r3kbnr/ppp2ppp/3p4/8/8/4P3/PPP2PPP/RNBQK2R b KQkq - 0 1",
-    )
-    .unwrap();
-    assert_eq!(
-        test_plmove_legality(&mut board, encode_move(60, 58, 2)),
-        true
-    );
-
-    let mut board = board::ChessBoard::initialize_from_fen(
-        "rnb1kb1r/ppppqppp/8/5n2/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 1",
-    )
-    .unwrap();
-    assert_eq!(
-        test_plmove_legality(&mut board, encode_move(28, 37, 1)),
-        false
-    );
-}
-
-#[test]
-fn test_get_legal_moves() {
-    let mut board = ChessBoard::initialize();
-
-    let mut correct_legal_moves: Vec<u16> = Vec::new();
-    for from_sqi in 8..=15 {
-        correct_legal_moves.push(utils::encode_move(from_sqi, from_sqi + 8, 0));
-        correct_legal_moves.push(utils::encode_move(from_sqi, from_sqi + 16, 0));
+    #[test]
+    fn test_rook_attacks() {
+        let empty_board = board::ChessBoard::empty();
+        // a1
+        let square1 = utils::square_to_bb("a1").unwrap();
+        let sq1_rook_attacks = rook_attacks(&true, &square1, &empty_board);
+        assert_eq!(sq1_rook_attacks, 0x01010101010101FE);
+        // a8
+        let square2 = utils::square_to_bb("a8").unwrap();
+        let sq2_rook_attacks = rook_attacks(&true, &square2, &empty_board);
+        assert_eq!(sq2_rook_attacks, 0xFE01010101010101);
+        // h1
+        let square3 = utils::square_to_bb("h1").unwrap();
+        let sq3_rook_attacks = rook_attacks(&true, &square3, &empty_board);
+        assert_eq!(sq3_rook_attacks, 0x808080808080807F);
+        // h8
+        let square4 = utils::square_to_bb("h8").unwrap();
+        let sq4_rook_attacks = rook_attacks(&true, &square4, &empty_board);
+        assert_eq!(sq4_rook_attacks, 0x7F80808080808080);
+        // d4
+        let square5 = utils::square_to_bb("d4").unwrap();
+        let sq5_rook_attacks = rook_attacks(&true, &square5, &empty_board);
+        assert_eq!(sq5_rook_attacks, 0x08080808F7080808);
     }
-    correct_legal_moves.push(utils::encode_move(1, 16, 0));
-    correct_legal_moves.push(utils::encode_move(1, 18, 0));
-    correct_legal_moves.push(utils::encode_move(6, 23, 0));
-    correct_legal_moves.push(utils::encode_move(6, 21, 0));
-    correct_legal_moves.sort();
 
-    let mut legal_moves = get_legal_moves(&mut board);
-    legal_moves.sort();
+    #[test]
+    fn test_queen_attacks() {
+        let empty_board = board::ChessBoard::empty();
 
-    assert_eq!(legal_moves, correct_legal_moves);
+        //a1
+        let square1 = utils::square_to_bb("a1").unwrap();
+        let sq1_queen_attacks = queen_attacks(&true, &square1, &empty_board);
+        assert_eq!(sq1_queen_attacks, (0x01010101010101FE | 0x8040201008040200));
+        // a8
+        let square2 = utils::square_to_bb("a8").unwrap();
+        let sq2_queen_attacks = queen_attacks(&true, &square2, &empty_board);
+        assert_eq!(sq2_queen_attacks, (0xFE01010101010101 | 0x0002040810204080));
+        // h1
+        let square3 = utils::square_to_bb("h1").unwrap();
+        let sq3_queen_attacks = queen_attacks(&true, &square3, &empty_board);
+        assert_eq!(sq3_queen_attacks, (0x808080808080807F | 0x0102040810204000));
+        // h8
+        let square4 = utils::square_to_bb("h8").unwrap();
+        let sq4_queen_attacks = queen_attacks(&true, &square4, &empty_board);
+        assert_eq!(sq4_queen_attacks, (0x7F80808080808080 | 0x0040201008040201));
+        // d4
+        let square5 = utils::square_to_bb("d4").unwrap();
+        let sq5_queen_attacks = queen_attacks(&true, &square5, &empty_board);
+        assert_eq!(sq5_queen_attacks, (0x08080808F7080808 | 0x8041221400142241));
+    }
+
+    #[test]
+    fn test_king_attacks() {
+        let board1 = board::ChessBoard::initialize();
+        // white king starting position
+        let square1 = utils::square_to_bb("e1").unwrap();
+        let sq1_king_attacks = king_attacks(&true, &square1, &board1);
+        assert_eq!(sq1_king_attacks, 0);
+        // black king starting position
+        let square2 = utils::square_to_bb("e8").unwrap();
+        let sq2_king_attacks = king_attacks(&false, &square2, &board1);
+        assert_eq!(sq2_king_attacks, 0);
+
+        let board2 = board::ChessBoard::empty();
+        // white king a1 empty board
+        let square3 = utils::square_to_bb("a1").unwrap();
+        let sq3_king_attacks = king_attacks(&true, &square3, &board2);
+        assert_eq!(sq3_king_attacks, 0x0000000000000302);
+        // black king a1 empty board
+        let square3 = utils::square_to_bb("a1").unwrap();
+        let sq3_king_attacks = king_attacks(&false, &square3, &board2);
+        assert_eq!(sq3_king_attacks, 0x0000000000000302);
+    }
+
+    #[test]
+    fn test_board_attacks() {
+        // 2 pieces of each type (except king), black to move
+        let board1 =
+            board::ChessBoard::initialize_from_fen("rnbq1p2/rnbq1pk1/8/8/8/8/8/K7 b KQkq - 0 1")
+                .unwrap();
+        let board_attacks_test = board_attacks(&board1, false);
+        let board_attacks_correct: u64 = 0xD090FF7FE9C98909;
+        assert_eq!(board_attacks_test, board_attacks_correct);
+
+        // 2 pieces of each type (except king), white to move
+        let board2 =
+            board::ChessBoard::initialize_from_fen("k7/8/8/8/8/8/RNBQ1PK1/RNBQ1P2 w KQkq - 0 1")
+                .unwrap();
+        let board_attacks_test = board_attacks(&board2, true);
+        let board_attacks_correct: u64 = 0x0989C9E97FFF90D0;
+        assert_eq!(board_attacks_test, board_attacks_correct);
+    }
+
+    #[test]
+    fn test_ray_generation() {
+        let square1 = utils::square_to_bb("e4").unwrap();
+        let rays: [u64; 8] = [
+            generate_north_ray(square1),
+            generate_ne_ray(square1),
+            generate_east_ray(square1),
+            generate_se_ray(square1),
+            generate_south_ray(square1),
+            generate_sw_ray(square1),
+            generate_west_ray(square1),
+            generate_nw_ray(square1),
+        ];
+
+        assert_eq!(
+            rays,
+            [
+                0x1010101000000000,
+                0x0080402000000000,
+                0x00000000E0000000,
+                0x0000000000204080,
+                0x0000000000101010,
+                0x0000000000080402,
+                0x000000000F000000,
+                0x0102040800000000
+            ]
+        );
+    }
+
+    #[test]
+    fn test_check_along_ray() {
+        // east ray from e4, friendly piece on g4.
+        let square1 = utils::square_to_bb("e4").unwrap();
+        let e_ray = generate_east_ray(square1);
+        let friendly_pieces = 0x0000000040000000;
+        let enemy_pieces = 0;
+        assert_eq!(
+            check_along_ray(square1, e_ray, friendly_pieces, enemy_pieces),
+            0x0000000020000000
+        );
+
+        // east ray from e4, enemy piece on g4.
+        let enemy_pieces = 0x0000000040000000;
+        let friendly_pieces = 0;
+        assert_eq!(
+            check_along_ray(square1, e_ray, friendly_pieces, enemy_pieces),
+            0x0000000060000000
+        );
+
+        // west ray from e4, friendly piece on a4.
+        let w_ray = generate_west_ray(square1);
+        let friendly_pieces = 0x0000000001000000;
+        let enemy_pieces = 0;
+        assert_eq!(
+            check_along_ray(square1, w_ray, friendly_pieces, enemy_pieces),
+            0x000000000E000000
+        );
+
+        // west ray from e4, enemy piece on a4.
+        let enemy_pieces = 0x0000000001000000;
+        let friendly_pieces = 0;
+        assert_eq!(
+            check_along_ray(square1, w_ray, friendly_pieces, enemy_pieces),
+            0x000000000F000000
+        );
+
+        // ne ray from e4, enemy piece on g6
+        let ne_ray = generate_ne_ray(square1);
+        let enemy_pieces = 0x0000400000000000;
+        let friendly_pieces = 0;
+        assert_eq!(
+            check_along_ray(square1, ne_ray, friendly_pieces, enemy_pieces),
+            0x0000402000000000
+        );
+
+        // nw ray from e4, friendly piece on a8;
+        let nw_ray = generate_nw_ray(square1);
+        let enemy_pieces = 0;
+        let friendly_pieces = 0x0100000000000000;
+        assert_eq!(
+            check_along_ray(square1, nw_ray, friendly_pieces, enemy_pieces),
+            0x0002040800000000
+        );
+
+        // se ray from e4, enemy piece on g2
+        let se_ray = generate_se_ray(square1);
+        let enemy_pieces = 0x0000000000004000;
+        let friendly_pieces = 0;
+        assert_eq!(
+            check_along_ray(square1, se_ray, friendly_pieces, enemy_pieces),
+            0x0000000000204000
+        );
+
+        // sw ray from e4, friendly piece on b1
+        let sw_ray = generate_sw_ray(square1);
+        let enemy_pieces = 0;
+        let friendly_pieces = 0x0000000000000002;
+        assert_eq!(
+            check_along_ray(square1, sw_ray, friendly_pieces, enemy_pieces),
+            0x0000000000080400
+        );
+    }
+
+    #[test]
+    fn test_get_pawn_plmoves() {
+        let board1 = ChessBoard::initialize(); // white in starting position
+        let mut correct_pawn_plmoves: Vec<u16> = Vec::new();
+
+        for from_sqi in 8..=15 {
+            correct_pawn_plmoves.push(utils::encode_move(from_sqi, from_sqi + 8, 0));
+            correct_pawn_plmoves.push(utils::encode_move(from_sqi, from_sqi + 16, 0));
+        }
+        correct_pawn_plmoves.sort();
+
+        let mut pawn_pl_moves = get_pawn_plmoves(&board1);
+        pawn_pl_moves.sort();
+
+        assert_eq!(pawn_pl_moves, correct_pawn_plmoves);
+
+        let board2 = ChessBoard::initialize_from_fen("k7/8/8/8/8/8/6p1/K6N b - - 0 1").unwrap(); // black promotions test
+        let mut correct_pawn_plmoves: Vec<u16> = Vec::new();
+
+        for flag in 8..=11 {
+            correct_pawn_plmoves.push(utils::encode_move(14, 7, flag));
+        }
+        for flag in 4..=7 {
+            correct_pawn_plmoves.push(utils::encode_move(14, 6, flag));
+        }
+        correct_pawn_plmoves.sort();
+
+        let mut pawn_pl_moves = get_pawn_plmoves(&board2);
+        pawn_pl_moves.sort();
+
+        assert_eq!(pawn_pl_moves, correct_pawn_plmoves);
+
+        let board3 = ChessBoard::initialize_from_fen("k7/8/8/4pP2/8/8/8/K7 w - e6 0 2").unwrap(); // white en passant
+        let mut correct_pawn_plmoves: Vec<u16> =
+            vec![utils::encode_move(37, 45, 0), utils::encode_move(37, 44, 3)];
+        correct_pawn_plmoves.sort();
+
+        let mut pawn_pl_moves = get_pawn_plmoves(&board3);
+        pawn_pl_moves.sort();
+
+        assert_eq!(pawn_pl_moves, correct_pawn_plmoves);
+    }
+
+    #[test]
+    fn test_get_nonpk_plmoves() {
+        let board1 = ChessBoard::initialize(); // white in starting position
+        let mut correct_nonpk_plmoves: Vec<u16> = vec![
+            utils::encode_move(1, 16, 0),
+            utils::encode_move(1, 18, 0),
+            utils::encode_move(6, 23, 0),
+            utils::encode_move(6, 21, 0),
+        ];
+        correct_nonpk_plmoves.sort();
+
+        let mut nonpk_pl_moves = get_nonpk_plmoves(&board1);
+        nonpk_pl_moves.sort();
+
+        assert_eq!(nonpk_pl_moves, correct_nonpk_plmoves);
+
+        let board2 =
+            ChessBoard::initialize_from_fen("1q2k1r1/Ppp4b/8/5Pp1/4p3/8/8/K7 b - - 0 1").unwrap(); // black in random position
+        let mut correct_nonpk_plmoves: Vec<u16> = vec![
+            utils::encode_move(57, 56, 0), // 4 queen moves
+            utils::encode_move(57, 58, 0),
+            utils::encode_move(57, 59, 0),
+            utils::encode_move(57, 48, 1),
+            utils::encode_move(62, 61, 0), // 4 rook moves
+            utils::encode_move(62, 63, 0),
+            utils::encode_move(62, 54, 0),
+            utils::encode_move(62, 46, 0),
+            utils::encode_move(55, 46, 0), // 2 bishop moves
+            utils::encode_move(55, 37, 1),
+        ];
+        correct_nonpk_plmoves.sort();
+
+        let mut nonpk_pl_moves = get_nonpk_plmoves(&board2);
+        nonpk_pl_moves.sort();
+
+        assert_eq!(nonpk_pl_moves, correct_nonpk_plmoves);
+    }
+
+    #[test]
+    fn test_get_king_plmoves() {
+        let mut board1 = ChessBoard::initialize_from_fen(
+            "r3kbnr/pppP1ppp/4p3/8/8/4P3/PPPp1PPP/RNBQK2R w KQkq - 0 1",
+        )
+        .unwrap();
+        let mut correct_king_plmoves: Vec<u16> = vec![
+            utils::encode_move(4, 12, 0),
+            utils::encode_move(4, 5, 0),
+            utils::encode_move(4, 11, 1),
+            utils::encode_move(4, 6, 2),
+        ];
+        correct_king_plmoves.sort();
+
+        let mut king_pl_moves = get_king_plmoves(&board1);
+        king_pl_moves.sort();
+
+        assert_eq!(king_pl_moves, correct_king_plmoves);
+
+        board1.make_move(utils::encode_move(8, 16, 0));
+        let mut correct_king_plmoves: Vec<u16> = vec![
+            utils::encode_move(60, 59, 0),
+            utils::encode_move(60, 52, 0),
+            utils::encode_move(60, 51, 1),
+            utils::encode_move(60, 58, 2),
+        ];
+        correct_king_plmoves.sort();
+
+        let mut king_pl_moves = get_king_plmoves(&board1);
+        king_pl_moves.sort();
+
+        assert_eq!(king_pl_moves, correct_king_plmoves);
+    }
+
+    #[test]
+    fn test_test_plmove_legality() {
+        let mut board = board::ChessBoard::initialize_from_fen(
+            "r3kbnr/pppP1ppp/4p3/8/8/4P3/PPPp1PPP/RNBQK2R w KQkq - 0 1",
+        )
+        .unwrap();
+        assert_eq!(
+            test_plmove_legality(&mut board, encode_move(4, 6, 2)),
+            false
+        );
+
+        let mut board = board::ChessBoard::initialize_from_fen(
+            "r3kbnr/pppP1ppp/4p3/8/8/4P3/PPP2PPP/RNBQK2R w KQkq - 0 1",
+        )
+        .unwrap();
+        assert_eq!(test_plmove_legality(&mut board, encode_move(4, 6, 2)), true);
+
+        let mut board = board::ChessBoard::initialize_from_fen(
+            "r3kbnr/pppP1ppp/4p3/8/8/4P3/PPP2PPP/RNBQK2R b KQkq - 0 1",
+        )
+        .unwrap();
+        assert_eq!(
+            test_plmove_legality(&mut board, encode_move(60, 58, 2)),
+            false
+        );
+
+        let mut board = board::ChessBoard::initialize_from_fen(
+            "r3kbnr/ppp2ppp/3p4/8/8/4P3/PPP2PPP/RNBQK2R b KQkq - 0 1",
+        )
+        .unwrap();
+        assert_eq!(
+            test_plmove_legality(&mut board, encode_move(60, 58, 2)),
+            true
+        );
+
+        let mut board = board::ChessBoard::initialize_from_fen(
+            "rnb1kb1r/ppppqppp/8/5n2/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 1",
+        )
+        .unwrap();
+        assert_eq!(
+            test_plmove_legality(&mut board, encode_move(28, 37, 1)),
+            false
+        );
+    }
+
+    #[test]
+    fn test_get_legal_moves() {
+        let mut board = ChessBoard::initialize();
+
+        let mut correct_legal_moves: Vec<u16> = Vec::new();
+        for from_sqi in 8..=15 {
+            correct_legal_moves.push(utils::encode_move(from_sqi, from_sqi + 8, 0));
+            correct_legal_moves.push(utils::encode_move(from_sqi, from_sqi + 16, 0));
+        }
+        correct_legal_moves.push(utils::encode_move(1, 16, 0));
+        correct_legal_moves.push(utils::encode_move(1, 18, 0));
+        correct_legal_moves.push(utils::encode_move(6, 23, 0));
+        correct_legal_moves.push(utils::encode_move(6, 21, 0));
+        correct_legal_moves.sort();
+
+        let mut legal_moves = get_legal_moves(&mut board);
+        legal_moves.sort();
+
+        assert_eq!(legal_moves, correct_legal_moves);
+    }
 }
