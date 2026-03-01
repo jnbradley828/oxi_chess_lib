@@ -2,7 +2,8 @@
 
 use crate::board;
 use crate::board::ChessBoard;
-use crate::utils;
+use crate::rules::is_check;
+use crate::utils::{self, encode_move};
 
 pub const A_FILE: u64 = 0x0101010101010101;
 pub const H_FILE: u64 = 0x8080808080808080;
@@ -492,7 +493,6 @@ pub fn get_pawn_plmoves(board: &board::ChessBoard) -> Vec<u16> {
             // if white pawn
             if *to_move {
                 let ep = board.en_passant;
-                println!("{this_target_bb}, {ep}");
                 if this_target_bb == board.en_passant {
                     // if en passant
                     moves.push(utils::encode_move(this_piece_i, this_target_i, 3));
@@ -713,6 +713,45 @@ pub fn get_pseudolegal_moves(board: &board::ChessBoard) -> Vec<u16> {
     return pl_moves;
 }
 
+pub fn test_plmove_legality(board: &mut board::ChessBoard, move_i: u16) -> bool {
+    // assumes the move given is ALREADY in the pseudolegal moves for the position.
+    // will only check if a move results in check, if castling moves through check
+    let to_move = board.side_to_move;
+
+    // castling legality
+    let move_decoded = utils::decode_move(move_i);
+    if move_decoded[2] == 2 {
+        // if flag == castle
+        if is_check(board, to_move) {
+            // can't castle out of check.
+            return false;
+        }
+
+        let hostile_attacks = board_attacks(board, !board.side_to_move);
+        let in_between_sqs: u64;
+        match move_decoded[1] {
+            // match the to_sq to determine which in-between squares to check (includes target sq)
+            2 => in_between_sqs = 0xE,
+            6 => in_between_sqs = 0x06,
+            58 => in_between_sqs = 0x0E00000000000000,
+            62 => in_between_sqs = 0x6000000000000000,
+            _ => return false,
+        }
+        if hostile_attacks & in_between_sqs != 0 {
+            return false;
+        }
+    }
+
+    // regular legality
+    let undo_info = board.make_move(move_i).unwrap();
+    if is_check(board, to_move) {
+        let _ = board.unmake_move(move_i, &undo_info);
+        return false;
+    } else {
+        let _ = board.unmake_move(move_i, &undo_info);
+        return true;
+    }
+}
 // unit tests
 
 #[test]
@@ -1169,4 +1208,49 @@ fn test_get_king_plmoves() {
     king_pl_moves.sort();
 
     assert_eq!(king_pl_moves, correct_king_plmoves);
+}
+
+#[test]
+fn test_test_plmove_legality() {
+    let mut board = board::ChessBoard::initialize_from_fen(
+        "r3kbnr/pppP1ppp/4p3/8/8/4P3/PPPp1PPP/RNBQK2R w KQkq - 0 1",
+    )
+    .unwrap();
+    assert_eq!(
+        test_plmove_legality(&mut board, encode_move(4, 6, 2)),
+        false
+    );
+
+    let mut board = board::ChessBoard::initialize_from_fen(
+        "r3kbnr/pppP1ppp/4p3/8/8/4P3/PPP2PPP/RNBQK2R w KQkq - 0 1",
+    )
+    .unwrap();
+    assert_eq!(test_plmove_legality(&mut board, encode_move(4, 6, 2)), true);
+
+    let mut board = board::ChessBoard::initialize_from_fen(
+        "r3kbnr/pppP1ppp/4p3/8/8/4P3/PPP2PPP/RNBQK2R b KQkq - 0 1",
+    )
+    .unwrap();
+    assert_eq!(
+        test_plmove_legality(&mut board, encode_move(60, 58, 2)),
+        false
+    );
+
+    let mut board = board::ChessBoard::initialize_from_fen(
+        "r3kbnr/ppp2ppp/3p4/8/8/4P3/PPP2PPP/RNBQK2R b KQkq - 0 1",
+    )
+    .unwrap();
+    assert_eq!(
+        test_plmove_legality(&mut board, encode_move(60, 58, 2)),
+        true
+    );
+
+    let mut board = board::ChessBoard::initialize_from_fen(
+        "rnb1kb1r/ppppqppp/8/5n2/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 1",
+    )
+    .unwrap();
+    assert_eq!(
+        test_plmove_legality(&mut board, encode_move(28, 37, 1)),
+        false
+    );
 }

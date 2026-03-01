@@ -248,6 +248,13 @@ pub fn encode_move(from_square: u8, to_square: u8, flag: u8) -> u16 {
     return encoded_move;
 }
 
+pub fn decode_move(move_i: u16) -> [u8; 3] {
+    let from_sqi = (move_i >> 10) as u8;
+    let to_sqi = ((move_i >> 4) & 0b111111) as u8;
+    let flag = (move_i & 0b1111) as u8;
+    return [from_sqi, to_sqi, flag];
+}
+
 // Unit Tests
 
 const A_SQUARES: [u64; 8] = [
@@ -578,4 +585,12 @@ fn test_encode_move() {
 
     let encoded_move = encode_move(from, to, flag);
     assert_eq!(encoded_move, 0b0111101100101000);
+}
+
+#[test]
+fn test_decode_move() {
+    let move_i = 0b1100110101011011;
+    let move_i_decoded: [u8; 3] = [0b110011, 0b010101, 0b1011];
+
+    assert_eq!(decode_move(move_i), move_i_decoded);
 }
