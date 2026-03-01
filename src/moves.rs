@@ -1,6 +1,7 @@
 // this file produces attack masks for each piece on a given board.
 
 use crate::board;
+use crate::board::ChessBoard;
 use crate::utils;
 
 pub const A_FILE: u64 = 0x0101010101010101;
@@ -48,8 +49,9 @@ const fn generate_black_pawn_attacks() -> [u64; 64] {
 pub const WHITE_PAWN_ATTACKS: [u64; 64] = generate_white_pawn_attacks();
 pub const BLACK_PAWN_ATTACKS: [u64; 64] = generate_black_pawn_attacks();
 
+// returns squares attacked by one pawn.
 pub fn pawn_attacks(color: &bool, square: &u64, board: &board::ChessBoard) -> u64 {
-    let mut pawn_attacks: u64 = 0;
+    let mut pawn_attacks: u64;
     if *color {
         pawn_attacks = WHITE_PAWN_ATTACKS[square.trailing_zeros() as usize];
         pawn_attacks = pawn_attacks & !(board.white_pieces);
@@ -107,6 +109,7 @@ const fn generate_knight_attacks() -> [u64; 64] {
 
 pub const KNIGHT_ATTACKS: [u64; 64] = generate_knight_attacks();
 
+// returns squares attacked by one knight.
 pub fn knight_attacks(color: &bool, square: &u64, board: &board::ChessBoard) -> u64 {
     let mut knight_attacks = KNIGHT_ATTACKS[square.trailing_zeros() as usize];
 
@@ -296,6 +299,7 @@ pub fn check_along_ray(piece: u64, ray: u64, friendly_pieces: u64, enemy_pieces:
     }
 }
 
+// returns squares attacked by one bishop.
 pub fn bishop_attacks(color: &bool, square: &u64, board: &board::ChessBoard) -> u64 {
     let mut bishop_attacks: u64 = 0;
 
@@ -325,6 +329,7 @@ pub fn bishop_attacks(color: &bool, square: &u64, board: &board::ChessBoard) -> 
     bishop_attacks
 }
 
+// returns squares attacked by one rook
 pub fn rook_attacks(color: &bool, square: &u64, board: &board::ChessBoard) -> u64 {
     let mut rook_attacks: u64 = 0;
 
@@ -353,6 +358,7 @@ pub fn rook_attacks(color: &bool, square: &u64, board: &board::ChessBoard) -> u6
     rook_attacks
 }
 
+// returns squares attacked by one queen.
 pub fn queen_attacks(color: &bool, square: &u64, board: &board::ChessBoard) -> u64 {
     let mut queen_attacks: u64 = 0;
     queen_attacks = queen_attacks | rook_attacks(color, square, board);
@@ -406,6 +412,7 @@ pub const fn generate_king_attacks() -> [u64; 64] {
 
 pub const KING_ATTACKS: [u64; 64] = generate_king_attacks();
 
+// returns squares attacked by one king.
 pub fn king_attacks(color: &bool, square: &u64, board: &board::ChessBoard) -> u64 {
     let mut king_attacks = KING_ATTACKS[square.trailing_zeros() as usize];
 
@@ -458,11 +465,123 @@ pub fn board_attacks(board: &board::ChessBoard, color: bool) -> u64 {
     attacks
 }
 
-/*
-pub fn get_pseudolegal_moves(board: &board::ChessBoard) {
-    todo!("this function is to return all pseudolegal moves on a board for the side to play.")
+pub fn get_pawn_plmoves(board: &board::ChessBoard) -> Vec<u16> {
+    let mut friendly_pawns: u64; // bitboard of pieces to check
+    let to_move = &board.side_to_move;
+    if board.side_to_move {
+        friendly_pawns = board.white_pieces & board.pawns;
+    } else {
+        friendly_pawns = board.black_pieces & board.pawns;
+    }
+
+    let mut moves: Vec<u16> = Vec::new();
+
+    // while there are still pawns to check, add moves for the next pawn
+    while friendly_pawns != 0 {
+        let this_piece_i: u8 = friendly_pawns.trailing_zeros() as u8; // next piece to check
+        let this_piece_bb: u64 = 1 << this_piece_i;
+
+        // Move Logic:
+        // from attack squares
+        let mut attack_sqs = pawn_attacks(to_move, &this_piece_bb, board);
+        while attack_sqs != 0 {
+            // while there are still attack squares to check for this pawn
+            let this_target_i: u8 = attack_sqs.trailing_zeros() as u8;
+            let this_target_bb: u64 = 1 << attack_sqs.trailing_zeros();
+
+            // if white pawn
+            if *to_move {
+                let ep = board.en_passant;
+                println!("{this_target_bb}, {ep}");
+                if this_target_bb == board.en_passant {
+                    // if en passant
+                    moves.push(utils::encode_move(this_piece_i, this_target_i, 3));
+                } else if this_target_bb & board.black_pieces != 0 {
+                    // if there is a capturable target
+                    if utils::on_rank_7(this_piece_bb) {
+                        // if promotion with capture
+                        for flag in 8..=11 {
+                            // one move for each promotion piece choice
+                            moves.push(utils::encode_move(this_piece_i, this_target_i, flag));
+                        }
+                    } else {
+                        // if normal capture
+                        moves.push(utils::encode_move(this_piece_i, this_target_i, 1));
+                    }
+                }
+            } else {
+                // if black pawn
+                if this_target_bb == board.en_passant {
+                    // if en passant
+                    moves.push(utils::encode_move(this_piece_i, this_target_i, 3));
+                } else if this_target_bb & board.white_pieces != 0 {
+                    if utils::on_rank_2(this_piece_bb) {
+                        // if promotion with capture
+                        for flag in 8..=11 {
+                            // one move for each promotion piece choice
+                            moves.push(utils::encode_move(this_piece_i, this_target_i, flag));
+                        }
+                    } else {
+                        // if normal capture
+                        moves.push(utils::encode_move(this_piece_i, this_target_i, 1));
+                    }
+                }
+            }
+
+            attack_sqs &= !this_target_bb;
+        }
+
+        if *to_move {
+            // if white pawn
+            // forward moves
+            if board.piece_type_at(this_piece_i + 8).is_none() {
+                if utils::on_rank_7(this_piece_bb) {
+                    // promotion w/out capture
+                    for flag in 4..=7 {
+                        // one move for each promotion piece choice
+                        moves.push(utils::encode_move(this_piece_i, this_piece_i + 8, flag));
+                    }
+                } else {
+                    moves.push(utils::encode_move(this_piece_i, this_piece_i + 8, 0)); // forward 1 square
+                    if utils::on_rank_2(this_piece_bb) {
+                        // if pawn is on starting square
+                        if board.piece_type_at(this_piece_i + 16).is_none() {
+                            moves.push(utils::encode_move(this_piece_i, this_piece_i + 16, 0));
+                            // forward 2 squares
+                        }
+                    }
+                }
+            }
+        } else {
+            // if black pawn
+            // forward moves
+            if board.piece_type_at(this_piece_i - 8).is_none() {
+                if utils::on_rank_2(this_piece_bb) {
+                    // promotion w/out capture
+                    for flag in 4..=7 {
+                        // one move for each promotion piece choice
+                        moves.push(utils::encode_move(this_piece_i, this_piece_i - 8, flag));
+                    }
+                } else {
+                    moves.push(utils::encode_move(this_piece_i, this_piece_i - 8, 0)); // forward 1 square
+                    if utils::on_rank_7(this_piece_bb) {
+                        // if pawn is on starting square
+                        if board.piece_type_at(this_piece_i - 16).is_none() {
+                            moves.push(utils::encode_move(this_piece_i, this_piece_i - 16, 0));
+                            // forward 2 squares
+                        }
+                    }
+                }
+            }
+        }
+
+        friendly_pawns &= !this_piece_bb; // remove checked piece
+    }
+
+    return moves;
 }
-*/
+
+// pub fn get_pseudolegal_moves(board: &board::ChessBoard) -> Vec<u16> {}
 
 // unit tests
 
@@ -805,4 +924,47 @@ fn test_check_along_ray() {
         check_along_ray(square1, sw_ray, friendly_pieces, enemy_pieces),
         0x0000000000080400
     );
+}
+
+#[test]
+fn test_get_pawn_plmoves() {
+    let board1 = ChessBoard::initialize(); // white in starting position
+    let mut correct_pawn_plmoves: Vec<u16> = Vec::new();
+
+    for from_sqi in 8..=15 {
+        correct_pawn_plmoves.push(utils::encode_move(from_sqi, from_sqi + 8, 0));
+        correct_pawn_plmoves.push(utils::encode_move(from_sqi, from_sqi + 16, 0));
+    }
+    correct_pawn_plmoves.sort();
+
+    let mut pawn_pl_moves = get_pawn_plmoves(&board1);
+    pawn_pl_moves.sort();
+
+    assert_eq!(pawn_pl_moves, correct_pawn_plmoves);
+
+    let board2 = ChessBoard::initialize_from_fen("k7/8/8/8/8/8/6p1/K6N b - - 0 1").unwrap(); // black promotions test
+    let mut correct_pawn_plmoves: Vec<u16> = Vec::new();
+
+    for flag in 8..=11 {
+        correct_pawn_plmoves.push(utils::encode_move(14, 7, flag));
+    }
+    for flag in 4..=7 {
+        correct_pawn_plmoves.push(utils::encode_move(14, 6, flag));
+    }
+    correct_pawn_plmoves.sort();
+
+    let mut pawn_pl_moves = get_pawn_plmoves(&board2);
+    pawn_pl_moves.sort();
+
+    assert_eq!(pawn_pl_moves, correct_pawn_plmoves);
+
+    let board3 = ChessBoard::initialize_from_fen("k7/8/8/4pP2/8/8/8/K7 w - e6 0 2").unwrap(); // white en passant
+    let mut correct_pawn_plmoves: Vec<u16> =
+        vec![utils::encode_move(37, 45, 0), utils::encode_move(37, 44, 3)];
+    correct_pawn_plmoves.sort();
+
+    let mut pawn_pl_moves = get_pawn_plmoves(&board3);
+    pawn_pl_moves.sort();
+
+    assert_eq!(pawn_pl_moves, correct_pawn_plmoves);
 }
