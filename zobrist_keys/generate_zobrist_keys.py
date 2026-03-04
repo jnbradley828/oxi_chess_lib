@@ -27,7 +27,7 @@ def main():
         print(f"    {key},")
     print("];")
 
-    print("\n// ZOBRIST_SIDE = side to move (XOR in when black to move)")
+    print("\n// ZOBRIST_SIDE = side to move (XOR in when white to move)")
     print(f"pub const ZOBRIST_SIDE: u64 = {keys[780]};")
 
 

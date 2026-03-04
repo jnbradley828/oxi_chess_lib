@@ -3,3 +3,4 @@ pub mod game;
 pub mod moves;
 pub mod rules;
 pub mod utils;
+pub mod zobrist_keys;

@@ -1,4 +1,9 @@
 use crate::utils;
+use crate::zobrist_keys;
+use crate::zobrist_keys::ZOBRIST_CASTLING;
+use crate::zobrist_keys::ZOBRIST_EP;
+use crate::zobrist_keys::ZOBRIST_PIECES;
+use crate::zobrist_keys::ZOBRIST_SIDE;
 
 /// Struct representing a chess board.
 /// We will let the least significant bit represent the a1 square.
@@ -579,6 +584,60 @@ impl ChessBoard {
         }
         return Ok(());
     }
+
+    pub fn generate_zobrist_hash(&mut self) -> u64 {
+        // index zobrist hashes as follows:
+        // ZOBRIST_PIECES[square 0..=63][piece 0..=11]
+        // ZOBRIST_CASTLING[castling right 0..=3]
+        // ZOBRIST_EP[en passant file 0..=7]
+        // ZOBRIST_SIDE when white to move
+        let mut hash: u64 = 0;
+
+        // xor with piece locoation keys
+        for (piece_type, piece_bb) in [
+            self.pawns,
+            self.knights,
+            self.bishops,
+            self.rooks,
+            self.queens,
+            self.kings,
+        ]
+        .iter()
+        .enumerate()
+        {
+            let mut bb = *piece_bb;
+            while bb != 0 {
+                let square = bb.trailing_zeros() as usize;
+                let square_bb = 1 << square;
+                if square_bb & self.white_pieces != 0 {
+                    hash ^= ZOBRIST_PIECES[square][piece_type];
+                } else {
+                    hash ^= ZOBRIST_PIECES[square][piece_type + 6];
+                }
+
+                bb &= bb - 1;
+            }
+        }
+
+        // xor with castling rights keys
+        let mut castling_bb = self.castling_rights;
+        while castling_bb != 0 {
+            let cr = castling_bb.trailing_zeros() as usize;
+            hash ^= ZOBRIST_CASTLING[cr];
+            castling_bb &= castling_bb - 1;
+        }
+
+        // xor with en passant file
+        if self.en_passant != 0 {
+            hash ^= ZOBRIST_EP[(1 << self.en_passant) % 8];
+        }
+
+        if self.side_to_move {
+            hash ^= ZOBRIST_SIDE;
+        }
+
+        return hash;
+    }
 }
 
 /// Verifies if a string is a valid FEN string.
@@ -693,6 +752,8 @@ pub fn verify_fen(fen: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use crate::utils::encode_move;
+
     use super::*;
 
     #[test]
@@ -913,644 +974,669 @@ mod tests {
         assert_eq!(board2.halfmove_clock, 0);
         assert_eq!(board2.fullmove_number, 1);
     }
-}
 
-#[test]
-fn test_piece_type_at() {
-    let board1 = ChessBoard::initialize();
-    let mut type_array: [Option<u8>; 64] = [None; 64];
-    for i in 0..64 {
-        let piece_type = board1.piece_type_at(i);
-        type_array[i as usize] = piece_type;
+    #[test]
+    fn test_piece_type_at() {
+        let board1 = ChessBoard::initialize();
+        let mut type_array: [Option<u8>; 64] = [None; 64];
+        for i in 0..64 {
+            let piece_type = board1.piece_type_at(i);
+            type_array[i as usize] = piece_type;
+        }
+        let correct_type_array: [Option<u8>; 64] = [
+            Some(3),
+            Some(1),
+            Some(2),
+            Some(4),
+            Some(5),
+            Some(2),
+            Some(1),
+            Some(3),
+            Some(0),
+            Some(0),
+            Some(0),
+            Some(0),
+            Some(0),
+            Some(0),
+            Some(0),
+            Some(0),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            Some(0),
+            Some(0),
+            Some(0),
+            Some(0),
+            Some(0),
+            Some(0),
+            Some(0),
+            Some(0),
+            Some(3),
+            Some(1),
+            Some(2),
+            Some(4),
+            Some(5),
+            Some(2),
+            Some(1),
+            Some(3),
+        ];
+
+        assert_eq!(type_array, correct_type_array);
     }
-    let correct_type_array: [Option<u8>; 64] = [
-        Some(3),
-        Some(1),
-        Some(2),
-        Some(4),
-        Some(5),
-        Some(2),
-        Some(1),
-        Some(3),
-        Some(0),
-        Some(0),
-        Some(0),
-        Some(0),
-        Some(0),
-        Some(0),
-        Some(0),
-        Some(0),
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        Some(0),
-        Some(0),
-        Some(0),
-        Some(0),
-        Some(0),
-        Some(0),
-        Some(0),
-        Some(0),
-        Some(3),
-        Some(1),
-        Some(2),
-        Some(4),
-        Some(5),
-        Some(2),
-        Some(1),
-        Some(3),
-    ];
-
-    assert_eq!(type_array, correct_type_array);
-}
-
-#[test]
-pub fn test_make_move() {
-    let mut board1 = ChessBoard::initialize();
-
-    let move1_int = 0b0011000111000000; // e2-e4
-    let move1_undo = board1.make_move(move1_int);
-
-    let correct_resulting_board1 = ChessBoard::initialize_from_fen(
-        "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1",
-    )
-    .unwrap();
-    let correct_undo1: Result<UndoInfo, String> = Ok(UndoInfo {
-        halfmove_clock: 0,
-        castling_rights: 0b1111,
-        en_passant_square: None,
-        captured_type: None,
-    });
-
-    assert_eq!(board1, correct_resulting_board1);
-    assert_eq!(move1_undo, correct_undo1);
-
-    let move2_int = 0b1111101011010000; // g8-f6
-    let move2_undo = board1.make_move(move2_int);
-
-    let correct_resulting_board2 = ChessBoard::initialize_from_fen(
-        "rnbqkb1r/pppppppp/5n2/8/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 1 2",
-    )
-    .unwrap();
-    let correct_undo2: Result<UndoInfo, String> = Ok(UndoInfo {
-        halfmove_clock: 0,
-        castling_rights: 0b1111,
-        en_passant_square: Some(20),
-        captured_type: None,
-    });
-
-    assert_eq!(board1, correct_resulting_board2);
-    assert_eq!(move2_undo, correct_undo2);
-
-    let move3_int = 0b0111001001000000; // e4-e5
-    board1.make_move(move3_int);
-    let move4_int = 0b1101111011110000; // h7-h6
-    board1.make_move(move4_int);
-
-    let move5_int = 0b1001001011010001; // e5 x f6;
-    let move5_undo = board1.make_move(move5_int);
-    let correct_resulting_board5 = ChessBoard::initialize_from_fen(
-        "rnbqkb1r/ppppppp1/5P1p/8/8/8/PPPP1PPP/RNBQKBNR b KQkq - 0 3",
-    )
-    .unwrap();
-
-    let correct_undo5: Result<UndoInfo, String> = Ok(UndoInfo {
-        halfmove_clock: 0,
-        castling_rights: 0b1111,
-        en_passant_square: None,
-        captured_type: Some(1),
-    });
-
-    assert_eq!(board1, correct_resulting_board5);
-    assert_eq!(move5_undo, correct_undo5);
-
-    let mut board2 = ChessBoard::initialize_from_fen(
-        "rnbqkbnr/ppp1pppp/8/3pP3/8/8/PPPP1PPP/RNBQKBNR w KQkq d6 0 1",
-    )
-    .unwrap();
-
-    let move1_int = 0b1001001010110011; // e5 x d5 en passant
-    let move1_undo = board2.make_move(move1_int);
-
-    let correct_resulting_board1 = ChessBoard::initialize_from_fen(
-        "rnbqkbnr/ppp1pppp/3P4/8/8/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1",
-    )
-    .unwrap();
-    let correct_undo1: Result<UndoInfo, String> = Ok(UndoInfo {
-        halfmove_clock: 0,
-        castling_rights: 0b1111,
-        en_passant_square: Some(43),
-        captured_type: Some(0),
-    });
-
-    assert_eq!(board2, correct_resulting_board1);
-    assert_eq!(move1_undo, correct_undo1);
-
-    let mut board3 = ChessBoard::initialize_from_fen(
-        "rnbqk2r/pppp1ppp/5n2/2b1p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 0 1",
-    )
-    .unwrap();
-
-    let move1_int = 0b0001000001100010; // e1 - g1 (white kingside castle)
-    let move1_undo = board3.make_move(move1_int);
-
-    let correct_resulting_board1 = ChessBoard::initialize_from_fen(
-        "rnbqk2r/pppp1ppp/5n2/2b1p3/2B1P3/5N2/PPPP1PPP/RNBQ1RK1 b kq - 1 1",
-    )
-    .unwrap();
-    let correct_undo1: Result<UndoInfo, String> = Ok(UndoInfo {
-        halfmove_clock: 0,
-        castling_rights: 0b1111,
-        en_passant_square: None,
-        captured_type: None,
-    });
-
-    assert_eq!(board3, correct_resulting_board1);
-    assert_eq!(move1_undo, correct_undo1);
-
-    let move2_int = 0b1111001111100010; // e8 - g8 (black kingside castle)
-    let move2_undo = board3.make_move(move2_int);
-
-    let correct_resulting_board2 = ChessBoard::initialize_from_fen(
-        "rnbq1rk1/pppp1ppp/5n2/2b1p3/2B1P3/5N2/PPPP1PPP/RNBQ1RK1 w - - 2 2",
-    )
-    .unwrap();
-    let correct_undo2: Result<UndoInfo, String> = Ok(UndoInfo {
-        halfmove_clock: 1,
-        castling_rights: 0b11,
-        en_passant_square: None,
-        captured_type: None,
-    });
-
-    assert_eq!(board3, correct_resulting_board2);
-    assert_eq!(move2_undo, correct_undo2);
-
-    let mut board4 = ChessBoard::initialize_from_fen(
-        "r3kbnr/pppqpppp/2n5/3p1b2/3P1B2/2N1P3/PPPQ1PPP/R3KBNR b KQkq - 0 1",
-    )
-    .unwrap();
-
-    let move1_int = 0b1111001110100010; // e8 - c8 (black queenside castle)
-    let move1_undo = board4.make_move(move1_int);
-
-    let correct_resulting_board1 = ChessBoard::initialize_from_fen(
-        "2kr1bnr/pppqpppp/2n5/3p1b2/3P1B2/2N1P3/PPPQ1PPP/R3KBNR w KQ - 1 2",
-    )
-    .unwrap();
-    let correct_undo1: Result<UndoInfo, String> = Ok(UndoInfo {
-        halfmove_clock: 0,
-        castling_rights: 0b1111,
-        en_passant_square: None,
-        captured_type: None,
-    });
-
-    assert_eq!(board4, correct_resulting_board1);
-    assert_eq!(move1_undo, correct_undo1);
-
-    let move2_int = 0b0001000000100010; // e1 - c1 (white queenside castle)
-    let move2_undo = board4.make_move(move2_int);
-
-    let correct_resulting_board2 = ChessBoard::initialize_from_fen(
-        "2kr1bnr/pppqpppp/2n5/3p1b2/3P1B2/2N1P3/PPPQ1PPP/2KR1BNR b - - 2 2",
-    )
-    .unwrap();
-    let correct_undo2: Result<UndoInfo, String> = Ok(UndoInfo {
-        halfmove_clock: 1,
-        castling_rights: 0b1100,
-        en_passant_square: None,
-        captured_type: None,
-    });
-
-    assert_eq!(board4, correct_resulting_board2);
-    assert_eq!(move2_undo, correct_undo2);
-
-    let mut board5 =
-        ChessBoard::initialize_from_fen("r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1").unwrap();
-
-    let move1_int = 0b0000000000010000; // a1 - b1
-    let move1_undo = board5.make_move(move1_int);
-
-    let correct_resulting_board1 =
-        ChessBoard::initialize_from_fen("r3k2r/8/8/8/8/8/8/1R2K2R b Kkq - 1 1").unwrap();
-    let correct_undo1: Result<UndoInfo, String> = Ok(UndoInfo {
-        halfmove_clock: 0,
-        castling_rights: 0b1111,
-        en_passant_square: None,
-        captured_type: None,
-    });
-
-    assert_eq!(board5, correct_resulting_board1);
-    assert_eq!(move1_undo, correct_undo1);
-
-    let move2_int = 0b1110001110010000; // a8 - b8
-    let move2_undo = board5.make_move(move2_int);
-
-    let correct_resulting_board2 =
-        ChessBoard::initialize_from_fen("1r2k2r/8/8/8/8/8/8/1R2K2R w Kk - 2 2").unwrap();
-    let correct_undo2: Result<UndoInfo, String> = Ok(UndoInfo {
-        halfmove_clock: 1,
-        castling_rights: 0b1011,
-        en_passant_square: None,
-        captured_type: None,
-    });
-
-    assert_eq!(board5, correct_resulting_board2);
-    assert_eq!(move2_undo, correct_undo2);
-
-    let move3_int = 0b0001110001100000; // h1 - g1
-    let move3_undo = board5.make_move(move3_int);
-
-    let correct_resulting_board3 =
-        ChessBoard::initialize_from_fen("1r2k2r/8/8/8/8/8/8/1R2K1R1 b k - 3 2").unwrap();
-    let correct_undo3: Result<UndoInfo, String> = Ok(UndoInfo {
-        halfmove_clock: 2,
-        castling_rights: 0b1010,
-        en_passant_square: None,
-        captured_type: None,
-    });
-
-    assert_eq!(board5, correct_resulting_board3);
-    assert_eq!(move3_undo, correct_undo3);
-
-    let move4_int = 0b1111111111100000; // h8 - g8
-    let move4_undo = board5.make_move(move4_int);
-
-    let correct_resulting_board4 =
-        ChessBoard::initialize_from_fen("1r2k1r1/8/8/8/8/8/8/1R2K1R1 w - - 4 3").unwrap();
-    let correct_undo4: Result<UndoInfo, String> = Ok(UndoInfo {
-        halfmove_clock: 3,
-        castling_rights: 0b0010,
-        en_passant_square: None,
-        captured_type: None,
-    });
-
-    assert_eq!(board5, correct_resulting_board4);
-    assert_eq!(move4_undo, correct_undo4);
-
-    let mut board6 =
-        ChessBoard::initialize_from_fen("r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1").unwrap();
-
-    let move1_int = 0b0000001110000001; // a1 x a8
-    let move1_undo = board6.make_move(move1_int);
-
-    let correct_resulting_board1 =
-        ChessBoard::initialize_from_fen("R3k2r/8/8/8/8/8/8/4K2R b Kk - 0 1").unwrap();
-    let correct_undo1: Result<UndoInfo, String> = Ok(UndoInfo {
-        halfmove_clock: 0,
-        castling_rights: 0b1111,
-        en_passant_square: None,
-        captured_type: Some(3),
-    });
-
-    assert_eq!(board6, correct_resulting_board1);
-    assert_eq!(move1_undo, correct_undo1);
-
-    let mut board7 = ChessBoard::initialize_from_fen("8/P7/8/8/8/8/8/K1k5 w - - 0 1").unwrap();
-
-    let move1_int = 0b1100001110000111; // a7 - a8 promote to q
-    let move1_undo = board7.make_move(move1_int);
-
-    let correct_resulting_board1 =
-        ChessBoard::initialize_from_fen("Q7/8/8/8/8/8/8/K1k5 b - - 0 1").unwrap();
-    let correct_undo1: Result<UndoInfo, String> = Ok(UndoInfo {
-        halfmove_clock: 0,
-        castling_rights: 0,
-        en_passant_square: None,
-        captured_type: None,
-    });
-
-    assert_eq!(board7, correct_resulting_board1);
-    assert_eq!(move1_undo, correct_undo1);
-
-    let mut board7 = ChessBoard::initialize_from_fen("8/P7/8/8/8/8/8/K1k5 w - - 0 1").unwrap();
-
-    let move1_int = 0b1100001110000110; // a7 - a8 promote to r
-    let move1_undo = board7.make_move(move1_int);
-
-    let correct_resulting_board1 =
-        ChessBoard::initialize_from_fen("R7/8/8/8/8/8/8/K1k5 b - - 0 1").unwrap();
-    let correct_undo1: Result<UndoInfo, String> = Ok(UndoInfo {
-        halfmove_clock: 0,
-        castling_rights: 0,
-        en_passant_square: None,
-        captured_type: None,
-    });
-
-    assert_eq!(board7, correct_resulting_board1);
-    assert_eq!(move1_undo, correct_undo1);
-
-    let mut board7 = ChessBoard::initialize_from_fen("8/P7/8/8/8/8/8/K1k5 w - - 0 1").unwrap();
-
-    let move1_int = 0b1100001110000101; // a7 - a8 promote to b
-    let move1_undo = board7.make_move(move1_int);
-
-    let correct_resulting_board1 =
-        ChessBoard::initialize_from_fen("B7/8/8/8/8/8/8/K1k5 b - - 0 1").unwrap();
-    let correct_undo1: Result<UndoInfo, String> = Ok(UndoInfo {
-        halfmove_clock: 0,
-        castling_rights: 0,
-        en_passant_square: None,
-        captured_type: None,
-    });
-
-    assert_eq!(board7, correct_resulting_board1);
-    assert_eq!(move1_undo, correct_undo1);
-
-    let mut board7 = ChessBoard::initialize_from_fen("8/P7/8/8/8/8/8/K1k5 w - - 0 1").unwrap();
-
-    let move1_int = 0b1100001110000100; // a7 - a8 promote to n
-    let move1_undo = board7.make_move(move1_int);
-
-    let correct_resulting_board1 =
-        ChessBoard::initialize_from_fen("N7/8/8/8/8/8/8/K1k5 b - - 0 1").unwrap();
-    let correct_undo1: Result<UndoInfo, String> = Ok(UndoInfo {
-        halfmove_clock: 0,
-        castling_rights: 0,
-        en_passant_square: None,
-        captured_type: None,
-    });
-
-    assert_eq!(board7, correct_resulting_board1);
-    assert_eq!(move1_undo, correct_undo1);
-
-    let mut board8 = ChessBoard::initialize_from_fen("k1K5/8/8/8/8/8/p7/8 b - - 0 1").unwrap();
-
-    let move1_int = 0b0010000000000111; // a2 - a1 promote to q
-    let move1_undo = board8.make_move(move1_int);
-
-    let correct_resulting_board1 =
-        ChessBoard::initialize_from_fen("k1K5/8/8/8/8/8/8/q7 w - - 0 2").unwrap();
-    let correct_undo1: Result<UndoInfo, String> = Ok(UndoInfo {
-        halfmove_clock: 0,
-        castling_rights: 0,
-        en_passant_square: None,
-        captured_type: None,
-    });
-
-    assert_eq!(board8, correct_resulting_board1);
-    assert_eq!(move1_undo, correct_undo1);
-
-    let mut board8 = ChessBoard::initialize_from_fen("k1K5/8/8/8/8/8/p7/8 b - - 0 1").unwrap();
-
-    let move1_int = 0b0010000000000110; // a2 - a1 promote to r
-    let move1_undo = board8.make_move(move1_int);
-
-    let correct_resulting_board1 =
-        ChessBoard::initialize_from_fen("k1K5/8/8/8/8/8/8/r7 w - - 0 2").unwrap();
-    let correct_undo1: Result<UndoInfo, String> = Ok(UndoInfo {
-        halfmove_clock: 0,
-        castling_rights: 0,
-        en_passant_square: None,
-        captured_type: None,
-    });
-
-    assert_eq!(board8, correct_resulting_board1);
-    assert_eq!(move1_undo, correct_undo1);
-
-    let mut board8 = ChessBoard::initialize_from_fen("k1K5/8/8/8/8/8/p7/8 b - - 0 1").unwrap();
-
-    let move1_int = 0b0010000000000101; // a2 - a1 promote to b
-    let move1_undo = board8.make_move(move1_int);
-
-    let correct_resulting_board1 =
-        ChessBoard::initialize_from_fen("k1K5/8/8/8/8/8/8/b7 w - - 0 2").unwrap();
-    let correct_undo1: Result<UndoInfo, String> = Ok(UndoInfo {
-        halfmove_clock: 0,
-        castling_rights: 0,
-        en_passant_square: None,
-        captured_type: None,
-    });
-
-    assert_eq!(board8, correct_resulting_board1);
-    assert_eq!(move1_undo, correct_undo1);
-
-    let mut board8 = ChessBoard::initialize_from_fen("k1K5/8/8/8/8/8/p7/8 b - - 0 1").unwrap();
-
-    let move1_int = 0b0010000000000100; // a2 - a1 promote to n
-    let move1_undo = board8.make_move(move1_int);
-
-    let correct_resulting_board1 =
-        ChessBoard::initialize_from_fen("k1K5/8/8/8/8/8/8/n7 w - - 0 2").unwrap();
-    let correct_undo1: Result<UndoInfo, String> = Ok(UndoInfo {
-        halfmove_clock: 0,
-        castling_rights: 0,
-        en_passant_square: None,
-        captured_type: None,
-    });
-
-    assert_eq!(board8, correct_resulting_board1);
-    assert_eq!(move1_undo, correct_undo1);
-
-    let mut board9 = ChessBoard::initialize_from_fen("k1K5/8/8/8/8/8/p7/1R6 b - - 0 1").unwrap();
-
-    let move1_int = 0b0010000000011011; // a2 x b1 promote to q
-    let move1_undo = board9.make_move(move1_int);
-
-    let correct_resulting_board1 =
-        ChessBoard::initialize_from_fen("k1K5/8/8/8/8/8/8/1q6 w - - 0 2").unwrap();
-    let correct_undo1: Result<UndoInfo, String> = Ok(UndoInfo {
-        halfmove_clock: 0,
-        castling_rights: 0,
-        en_passant_square: None,
-        captured_type: Some(3),
-    });
-
-    assert_eq!(board9, correct_resulting_board1);
-    assert_eq!(move1_undo, correct_undo1);
-
-    let mut board9 = ChessBoard::initialize_from_fen("k1K5/8/8/8/8/8/p7/1R6 b - - 0 1").unwrap();
-
-    let move1_int = 0b0010000000011010; // a2 x b1 promote to r
-    let move1_undo = board9.make_move(move1_int);
-
-    let correct_resulting_board1 =
-        ChessBoard::initialize_from_fen("k1K5/8/8/8/8/8/8/1r6 w - - 0 2").unwrap();
-    let correct_undo1: Result<UndoInfo, String> = Ok(UndoInfo {
-        halfmove_clock: 0,
-        castling_rights: 0,
-        en_passant_square: None,
-        captured_type: Some(3),
-    });
-
-    assert_eq!(board9, correct_resulting_board1);
-    assert_eq!(move1_undo, correct_undo1);
-}
-
-#[test]
-pub fn test_unmake_move() {
-    let mut board1 = ChessBoard::initialize();
-    let board1_copy = board1.clone();
-
-    let move1_int = 0b0011000111000000; // e2-e4
-    let move1_undo_info = board1.make_move(move1_int).unwrap();
-    let move1_undo_result = board1.unmake_move(move1_int, &move1_undo_info);
-
-    assert_eq!(move1_undo_result, Ok(()));
-    assert_eq!(board1, board1_copy);
-
-    let mut board2 = ChessBoard::initialize_from_fen(
-        "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1",
-    )
-    .unwrap();
-    let board2_copy = board2.clone();
-
-    let move2_int = 0b1100001000000000; // a7 - a5
-    let move2_undo_info = board2.make_move(move2_int).unwrap();
-    let move2_undo_result = board2.unmake_move(move2_int, &move2_undo_info);
-
-    assert_eq!(move2_undo_result, Ok(()));
-    assert_eq!(board2, board2_copy);
-
-    let mut board3 = ChessBoard::initialize_from_fen(
-        "rnbqkb1r/pppppppp/8/5n2/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 1",
-    )
-    .unwrap();
-    let board3_copy = board3.clone();
-
-    let move3_int = 0b0111001001010001; // e4 x f5
-    let move3_undo_info = board3.make_move(move3_int).unwrap();
-    let move3_undo_result = board3.unmake_move(move3_int, &move3_undo_info);
-
-    assert_eq!(move3_undo_result, Ok(()));
-    assert_eq!(board3, board3_copy);
-
-    let mut board4 = ChessBoard::initialize_from_fen(
-        "rnbqkbnr/ppp1pppp/8/8/3pP3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1",
-    )
-    .unwrap();
-    let board4_copy = board4.clone();
-
-    let move4_int = 0b0110110101000011; // d4 x e3 en passant
-    let move4_undo_info = board4.make_move(move4_int).unwrap();
-    let move4_undo_result = board4.unmake_move(move4_int, &move4_undo_info);
-
-    assert_eq!(move4_undo_result, Ok(()));
-    assert_eq!(board4, board4_copy);
-
-    let mut board5 = ChessBoard::initialize_from_fen("k7/7P/8/8/8/8/8/K7 w - - 0 1").unwrap();
-    let board5_copy = board5.clone();
-
-    let move5_int = 0b1101111111110100; // h7 - h8 promote to knight
-    let move5_undo_info = board5.make_move(move5_int).unwrap();
-    let move5_undo_result = board5.unmake_move(move5_int, &move5_undo_info);
-
-    assert_eq!(move5_undo_result, Ok(()));
-    assert_eq!(board5, board5_copy);
-
-    let mut board5 = ChessBoard::initialize_from_fen("k7/7P/8/8/8/8/8/K7 w - - 0 1").unwrap();
-    let board5_copy = board5.clone();
-
-    let move5_int = 0b1101111111110101; // h7 - h8 promote to bishop
-    let move5_undo_info = board5.make_move(move5_int).unwrap();
-    let move5_undo_result = board5.unmake_move(move5_int, &move5_undo_info);
-
-    assert_eq!(move5_undo_result, Ok(()));
-    assert_eq!(board5, board5_copy);
-
-    let mut board5 = ChessBoard::initialize_from_fen("k7/7P/8/8/8/8/8/K7 w - - 0 1").unwrap();
-    let board5_copy = board5.clone();
-
-    let move5_int = 0b1101111111110110; // h7 - h8 promote to rook
-    let move5_undo_info = board5.make_move(move5_int).unwrap();
-    let move5_undo_result = board5.unmake_move(move5_int, &move5_undo_info);
-
-    assert_eq!(move5_undo_result, Ok(()));
-    assert_eq!(board5, board5_copy);
-
-    let mut board5 = ChessBoard::initialize_from_fen("k7/7P/8/8/8/8/8/K7 w - - 0 1").unwrap();
-    let board5_copy = board5.clone();
-
-    let move5_int = 0b1101111111110111; // h7 - h8 promote to queen
-    let move5_undo_info = board5.make_move(move5_int).unwrap();
-    let move5_undo_result = board5.unmake_move(move5_int, &move5_undo_info);
-
-    assert_eq!(move5_undo_result, Ok(()));
-    assert_eq!(board5, board5_copy);
-
-    let mut board6 = ChessBoard::initialize_from_fen("k5q1/7P/8/8/8/8/8/K7 w - - 0 1").unwrap();
-    let board6_copy = board6.clone();
-
-    let move6_int = 0b1101111111101011; // h7 x g8 promote to queen
-    let move6_undo_info = board6.make_move(move6_int).unwrap();
-    let move6_undo_result = board6.unmake_move(move6_int, &move6_undo_info);
-
-    assert_eq!(move6_undo_result, Ok(()));
-    assert_eq!(board6, board6_copy);
-
-    let mut board7 =
-        ChessBoard::initialize_from_fen("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1")
-            .unwrap();
-    let board7_copy = board7.clone();
-
-    let move7_int = 0b0001000001100010; // e1 - g1 white kingside castles
-    let move7_undo_info = board7.make_move(move7_int).unwrap();
-    let move7_undo_result = board7.unmake_move(move7_int, &move7_undo_info);
-
-    assert_eq!(move7_undo_result, Ok(()));
-    assert_eq!(board7, board7_copy);
-
-    let mut board7 =
-        ChessBoard::initialize_from_fen("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1")
-            .unwrap();
-    let board7_copy = board7.clone();
-
-    let move7_int = 0b0001000000100010; // e1 - c1 white queenside castles
-    let move7_undo_info = board7.make_move(move7_int).unwrap();
-    let move7_undo_result = board7.unmake_move(move7_int, &move7_undo_info);
-
-    assert_eq!(move7_undo_result, Ok(()));
-    assert_eq!(board7, board7_copy);
-
-    let mut board8 =
-        ChessBoard::initialize_from_fen("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R b KQkq - 0 1")
-            .unwrap();
-    let board8_copy = board8.clone();
-
-    let move8_int = 0b1111001111100010; // e8 - g8 black kingside castles
-    let move8_undo_info = board8.make_move(move8_int).unwrap();
-    let move8_undo_result = board8.unmake_move(move8_int, &move8_undo_info);
-
-    assert_eq!(move8_undo_result, Ok(()));
-    assert_eq!(board8, board8_copy);
-
-    let mut board8 =
-        ChessBoard::initialize_from_fen("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R b KQkq - 0 1")
-            .unwrap();
-    let board8_copy = board8.clone();
-
-    let move8_int = 0b1111001110100010; // e8 - c8 black queenside castles
-    let move8_undo_info = board8.make_move(move8_int).unwrap();
-    let move8_undo_result = board8.unmake_move(move8_int, &move8_undo_info);
-
-    assert_eq!(move8_undo_result, Ok(()));
-    assert_eq!(board8, board8_copy);
+
+    #[test]
+    pub fn test_make_move() {
+        let mut board1 = ChessBoard::initialize();
+
+        let move1_int = 0b0011000111000000; // e2-e4
+        let move1_undo = board1.make_move(move1_int);
+
+        let correct_resulting_board1 = ChessBoard::initialize_from_fen(
+            "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1",
+        )
+        .unwrap();
+        let correct_undo1: Result<UndoInfo, String> = Ok(UndoInfo {
+            halfmove_clock: 0,
+            castling_rights: 0b1111,
+            en_passant_square: None,
+            captured_type: None,
+        });
+
+        assert_eq!(board1, correct_resulting_board1);
+        assert_eq!(move1_undo, correct_undo1);
+
+        let move2_int = 0b1111101011010000; // g8-f6
+        let move2_undo = board1.make_move(move2_int);
+
+        let correct_resulting_board2 = ChessBoard::initialize_from_fen(
+            "rnbqkb1r/pppppppp/5n2/8/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 1 2",
+        )
+        .unwrap();
+        let correct_undo2: Result<UndoInfo, String> = Ok(UndoInfo {
+            halfmove_clock: 0,
+            castling_rights: 0b1111,
+            en_passant_square: Some(20),
+            captured_type: None,
+        });
+
+        assert_eq!(board1, correct_resulting_board2);
+        assert_eq!(move2_undo, correct_undo2);
+
+        let move3_int = 0b0111001001000000; // e4-e5
+        board1.make_move(move3_int);
+        let move4_int = 0b1101111011110000; // h7-h6
+        board1.make_move(move4_int);
+
+        let move5_int = 0b1001001011010001; // e5 x f6;
+        let move5_undo = board1.make_move(move5_int);
+        let correct_resulting_board5 = ChessBoard::initialize_from_fen(
+            "rnbqkb1r/ppppppp1/5P1p/8/8/8/PPPP1PPP/RNBQKBNR b KQkq - 0 3",
+        )
+        .unwrap();
+
+        let correct_undo5: Result<UndoInfo, String> = Ok(UndoInfo {
+            halfmove_clock: 0,
+            castling_rights: 0b1111,
+            en_passant_square: None,
+            captured_type: Some(1),
+        });
+
+        assert_eq!(board1, correct_resulting_board5);
+        assert_eq!(move5_undo, correct_undo5);
+
+        let mut board2 = ChessBoard::initialize_from_fen(
+            "rnbqkbnr/ppp1pppp/8/3pP3/8/8/PPPP1PPP/RNBQKBNR w KQkq d6 0 1",
+        )
+        .unwrap();
+
+        let move1_int = 0b1001001010110011; // e5 x d5 en passant
+        let move1_undo = board2.make_move(move1_int);
+
+        let correct_resulting_board1 = ChessBoard::initialize_from_fen(
+            "rnbqkbnr/ppp1pppp/3P4/8/8/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1",
+        )
+        .unwrap();
+        let correct_undo1: Result<UndoInfo, String> = Ok(UndoInfo {
+            halfmove_clock: 0,
+            castling_rights: 0b1111,
+            en_passant_square: Some(43),
+            captured_type: Some(0),
+        });
+
+        assert_eq!(board2, correct_resulting_board1);
+        assert_eq!(move1_undo, correct_undo1);
+
+        let mut board3 = ChessBoard::initialize_from_fen(
+            "rnbqk2r/pppp1ppp/5n2/2b1p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 0 1",
+        )
+        .unwrap();
+
+        let move1_int = 0b0001000001100010; // e1 - g1 (white kingside castle)
+        let move1_undo = board3.make_move(move1_int);
+
+        let correct_resulting_board1 = ChessBoard::initialize_from_fen(
+            "rnbqk2r/pppp1ppp/5n2/2b1p3/2B1P3/5N2/PPPP1PPP/RNBQ1RK1 b kq - 1 1",
+        )
+        .unwrap();
+        let correct_undo1: Result<UndoInfo, String> = Ok(UndoInfo {
+            halfmove_clock: 0,
+            castling_rights: 0b1111,
+            en_passant_square: None,
+            captured_type: None,
+        });
+
+        assert_eq!(board3, correct_resulting_board1);
+        assert_eq!(move1_undo, correct_undo1);
+
+        let move2_int = 0b1111001111100010; // e8 - g8 (black kingside castle)
+        let move2_undo = board3.make_move(move2_int);
+
+        let correct_resulting_board2 = ChessBoard::initialize_from_fen(
+            "rnbq1rk1/pppp1ppp/5n2/2b1p3/2B1P3/5N2/PPPP1PPP/RNBQ1RK1 w - - 2 2",
+        )
+        .unwrap();
+        let correct_undo2: Result<UndoInfo, String> = Ok(UndoInfo {
+            halfmove_clock: 1,
+            castling_rights: 0b11,
+            en_passant_square: None,
+            captured_type: None,
+        });
+
+        assert_eq!(board3, correct_resulting_board2);
+        assert_eq!(move2_undo, correct_undo2);
+
+        let mut board4 = ChessBoard::initialize_from_fen(
+            "r3kbnr/pppqpppp/2n5/3p1b2/3P1B2/2N1P3/PPPQ1PPP/R3KBNR b KQkq - 0 1",
+        )
+        .unwrap();
+
+        let move1_int = 0b1111001110100010; // e8 - c8 (black queenside castle)
+        let move1_undo = board4.make_move(move1_int);
+
+        let correct_resulting_board1 = ChessBoard::initialize_from_fen(
+            "2kr1bnr/pppqpppp/2n5/3p1b2/3P1B2/2N1P3/PPPQ1PPP/R3KBNR w KQ - 1 2",
+        )
+        .unwrap();
+        let correct_undo1: Result<UndoInfo, String> = Ok(UndoInfo {
+            halfmove_clock: 0,
+            castling_rights: 0b1111,
+            en_passant_square: None,
+            captured_type: None,
+        });
+
+        assert_eq!(board4, correct_resulting_board1);
+        assert_eq!(move1_undo, correct_undo1);
+
+        let move2_int = 0b0001000000100010; // e1 - c1 (white queenside castle)
+        let move2_undo = board4.make_move(move2_int);
+
+        let correct_resulting_board2 = ChessBoard::initialize_from_fen(
+            "2kr1bnr/pppqpppp/2n5/3p1b2/3P1B2/2N1P3/PPPQ1PPP/2KR1BNR b - - 2 2",
+        )
+        .unwrap();
+        let correct_undo2: Result<UndoInfo, String> = Ok(UndoInfo {
+            halfmove_clock: 1,
+            castling_rights: 0b1100,
+            en_passant_square: None,
+            captured_type: None,
+        });
+
+        assert_eq!(board4, correct_resulting_board2);
+        assert_eq!(move2_undo, correct_undo2);
+
+        let mut board5 =
+            ChessBoard::initialize_from_fen("r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1").unwrap();
+
+        let move1_int = 0b0000000000010000; // a1 - b1
+        let move1_undo = board5.make_move(move1_int);
+
+        let correct_resulting_board1 =
+            ChessBoard::initialize_from_fen("r3k2r/8/8/8/8/8/8/1R2K2R b Kkq - 1 1").unwrap();
+        let correct_undo1: Result<UndoInfo, String> = Ok(UndoInfo {
+            halfmove_clock: 0,
+            castling_rights: 0b1111,
+            en_passant_square: None,
+            captured_type: None,
+        });
+
+        assert_eq!(board5, correct_resulting_board1);
+        assert_eq!(move1_undo, correct_undo1);
+
+        let move2_int = 0b1110001110010000; // a8 - b8
+        let move2_undo = board5.make_move(move2_int);
+
+        let correct_resulting_board2 =
+            ChessBoard::initialize_from_fen("1r2k2r/8/8/8/8/8/8/1R2K2R w Kk - 2 2").unwrap();
+        let correct_undo2: Result<UndoInfo, String> = Ok(UndoInfo {
+            halfmove_clock: 1,
+            castling_rights: 0b1011,
+            en_passant_square: None,
+            captured_type: None,
+        });
+
+        assert_eq!(board5, correct_resulting_board2);
+        assert_eq!(move2_undo, correct_undo2);
+
+        let move3_int = 0b0001110001100000; // h1 - g1
+        let move3_undo = board5.make_move(move3_int);
+
+        let correct_resulting_board3 =
+            ChessBoard::initialize_from_fen("1r2k2r/8/8/8/8/8/8/1R2K1R1 b k - 3 2").unwrap();
+        let correct_undo3: Result<UndoInfo, String> = Ok(UndoInfo {
+            halfmove_clock: 2,
+            castling_rights: 0b1010,
+            en_passant_square: None,
+            captured_type: None,
+        });
+
+        assert_eq!(board5, correct_resulting_board3);
+        assert_eq!(move3_undo, correct_undo3);
+
+        let move4_int = 0b1111111111100000; // h8 - g8
+        let move4_undo = board5.make_move(move4_int);
+
+        let correct_resulting_board4 =
+            ChessBoard::initialize_from_fen("1r2k1r1/8/8/8/8/8/8/1R2K1R1 w - - 4 3").unwrap();
+        let correct_undo4: Result<UndoInfo, String> = Ok(UndoInfo {
+            halfmove_clock: 3,
+            castling_rights: 0b0010,
+            en_passant_square: None,
+            captured_type: None,
+        });
+
+        assert_eq!(board5, correct_resulting_board4);
+        assert_eq!(move4_undo, correct_undo4);
+
+        let mut board6 =
+            ChessBoard::initialize_from_fen("r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1").unwrap();
+
+        let move1_int = 0b0000001110000001; // a1 x a8
+        let move1_undo = board6.make_move(move1_int);
+
+        let correct_resulting_board1 =
+            ChessBoard::initialize_from_fen("R3k2r/8/8/8/8/8/8/4K2R b Kk - 0 1").unwrap();
+        let correct_undo1: Result<UndoInfo, String> = Ok(UndoInfo {
+            halfmove_clock: 0,
+            castling_rights: 0b1111,
+            en_passant_square: None,
+            captured_type: Some(3),
+        });
+
+        assert_eq!(board6, correct_resulting_board1);
+        assert_eq!(move1_undo, correct_undo1);
+
+        let mut board7 = ChessBoard::initialize_from_fen("8/P7/8/8/8/8/8/K1k5 w - - 0 1").unwrap();
+
+        let move1_int = 0b1100001110000111; // a7 - a8 promote to q
+        let move1_undo = board7.make_move(move1_int);
+
+        let correct_resulting_board1 =
+            ChessBoard::initialize_from_fen("Q7/8/8/8/8/8/8/K1k5 b - - 0 1").unwrap();
+        let correct_undo1: Result<UndoInfo, String> = Ok(UndoInfo {
+            halfmove_clock: 0,
+            castling_rights: 0,
+            en_passant_square: None,
+            captured_type: None,
+        });
+
+        assert_eq!(board7, correct_resulting_board1);
+        assert_eq!(move1_undo, correct_undo1);
+
+        let mut board7 = ChessBoard::initialize_from_fen("8/P7/8/8/8/8/8/K1k5 w - - 0 1").unwrap();
+
+        let move1_int = 0b1100001110000110; // a7 - a8 promote to r
+        let move1_undo = board7.make_move(move1_int);
+
+        let correct_resulting_board1 =
+            ChessBoard::initialize_from_fen("R7/8/8/8/8/8/8/K1k5 b - - 0 1").unwrap();
+        let correct_undo1: Result<UndoInfo, String> = Ok(UndoInfo {
+            halfmove_clock: 0,
+            castling_rights: 0,
+            en_passant_square: None,
+            captured_type: None,
+        });
+
+        assert_eq!(board7, correct_resulting_board1);
+        assert_eq!(move1_undo, correct_undo1);
+
+        let mut board7 = ChessBoard::initialize_from_fen("8/P7/8/8/8/8/8/K1k5 w - - 0 1").unwrap();
+
+        let move1_int = 0b1100001110000101; // a7 - a8 promote to b
+        let move1_undo = board7.make_move(move1_int);
+
+        let correct_resulting_board1 =
+            ChessBoard::initialize_from_fen("B7/8/8/8/8/8/8/K1k5 b - - 0 1").unwrap();
+        let correct_undo1: Result<UndoInfo, String> = Ok(UndoInfo {
+            halfmove_clock: 0,
+            castling_rights: 0,
+            en_passant_square: None,
+            captured_type: None,
+        });
+
+        assert_eq!(board7, correct_resulting_board1);
+        assert_eq!(move1_undo, correct_undo1);
+
+        let mut board7 = ChessBoard::initialize_from_fen("8/P7/8/8/8/8/8/K1k5 w - - 0 1").unwrap();
+
+        let move1_int = 0b1100001110000100; // a7 - a8 promote to n
+        let move1_undo = board7.make_move(move1_int);
+
+        let correct_resulting_board1 =
+            ChessBoard::initialize_from_fen("N7/8/8/8/8/8/8/K1k5 b - - 0 1").unwrap();
+        let correct_undo1: Result<UndoInfo, String> = Ok(UndoInfo {
+            halfmove_clock: 0,
+            castling_rights: 0,
+            en_passant_square: None,
+            captured_type: None,
+        });
+
+        assert_eq!(board7, correct_resulting_board1);
+        assert_eq!(move1_undo, correct_undo1);
+
+        let mut board8 = ChessBoard::initialize_from_fen("k1K5/8/8/8/8/8/p7/8 b - - 0 1").unwrap();
+
+        let move1_int = 0b0010000000000111; // a2 - a1 promote to q
+        let move1_undo = board8.make_move(move1_int);
+
+        let correct_resulting_board1 =
+            ChessBoard::initialize_from_fen("k1K5/8/8/8/8/8/8/q7 w - - 0 2").unwrap();
+        let correct_undo1: Result<UndoInfo, String> = Ok(UndoInfo {
+            halfmove_clock: 0,
+            castling_rights: 0,
+            en_passant_square: None,
+            captured_type: None,
+        });
+
+        assert_eq!(board8, correct_resulting_board1);
+        assert_eq!(move1_undo, correct_undo1);
+
+        let mut board8 = ChessBoard::initialize_from_fen("k1K5/8/8/8/8/8/p7/8 b - - 0 1").unwrap();
+
+        let move1_int = 0b0010000000000110; // a2 - a1 promote to r
+        let move1_undo = board8.make_move(move1_int);
+
+        let correct_resulting_board1 =
+            ChessBoard::initialize_from_fen("k1K5/8/8/8/8/8/8/r7 w - - 0 2").unwrap();
+        let correct_undo1: Result<UndoInfo, String> = Ok(UndoInfo {
+            halfmove_clock: 0,
+            castling_rights: 0,
+            en_passant_square: None,
+            captured_type: None,
+        });
+
+        assert_eq!(board8, correct_resulting_board1);
+        assert_eq!(move1_undo, correct_undo1);
+
+        let mut board8 = ChessBoard::initialize_from_fen("k1K5/8/8/8/8/8/p7/8 b - - 0 1").unwrap();
+
+        let move1_int = 0b0010000000000101; // a2 - a1 promote to b
+        let move1_undo = board8.make_move(move1_int);
+
+        let correct_resulting_board1 =
+            ChessBoard::initialize_from_fen("k1K5/8/8/8/8/8/8/b7 w - - 0 2").unwrap();
+        let correct_undo1: Result<UndoInfo, String> = Ok(UndoInfo {
+            halfmove_clock: 0,
+            castling_rights: 0,
+            en_passant_square: None,
+            captured_type: None,
+        });
+
+        assert_eq!(board8, correct_resulting_board1);
+        assert_eq!(move1_undo, correct_undo1);
+
+        let mut board8 = ChessBoard::initialize_from_fen("k1K5/8/8/8/8/8/p7/8 b - - 0 1").unwrap();
+
+        let move1_int = 0b0010000000000100; // a2 - a1 promote to n
+        let move1_undo = board8.make_move(move1_int);
+
+        let correct_resulting_board1 =
+            ChessBoard::initialize_from_fen("k1K5/8/8/8/8/8/8/n7 w - - 0 2").unwrap();
+        let correct_undo1: Result<UndoInfo, String> = Ok(UndoInfo {
+            halfmove_clock: 0,
+            castling_rights: 0,
+            en_passant_square: None,
+            captured_type: None,
+        });
+
+        assert_eq!(board8, correct_resulting_board1);
+        assert_eq!(move1_undo, correct_undo1);
+
+        let mut board9 =
+            ChessBoard::initialize_from_fen("k1K5/8/8/8/8/8/p7/1R6 b - - 0 1").unwrap();
+
+        let move1_int = 0b0010000000011011; // a2 x b1 promote to q
+        let move1_undo = board9.make_move(move1_int);
+
+        let correct_resulting_board1 =
+            ChessBoard::initialize_from_fen("k1K5/8/8/8/8/8/8/1q6 w - - 0 2").unwrap();
+        let correct_undo1: Result<UndoInfo, String> = Ok(UndoInfo {
+            halfmove_clock: 0,
+            castling_rights: 0,
+            en_passant_square: None,
+            captured_type: Some(3),
+        });
+
+        assert_eq!(board9, correct_resulting_board1);
+        assert_eq!(move1_undo, correct_undo1);
+
+        let mut board9 =
+            ChessBoard::initialize_from_fen("k1K5/8/8/8/8/8/p7/1R6 b - - 0 1").unwrap();
+
+        let move1_int = 0b0010000000011010; // a2 x b1 promote to r
+        let move1_undo = board9.make_move(move1_int);
+
+        let correct_resulting_board1 =
+            ChessBoard::initialize_from_fen("k1K5/8/8/8/8/8/8/1r6 w - - 0 2").unwrap();
+        let correct_undo1: Result<UndoInfo, String> = Ok(UndoInfo {
+            halfmove_clock: 0,
+            castling_rights: 0,
+            en_passant_square: None,
+            captured_type: Some(3),
+        });
+
+        assert_eq!(board9, correct_resulting_board1);
+        assert_eq!(move1_undo, correct_undo1);
+    }
+
+    #[test]
+    pub fn test_unmake_move() {
+        let mut board1 = ChessBoard::initialize();
+        let board1_copy = board1.clone();
+
+        let move1_int = 0b0011000111000000; // e2-e4
+        let move1_undo_info = board1.make_move(move1_int).unwrap();
+        let move1_undo_result = board1.unmake_move(move1_int, &move1_undo_info);
+
+        assert_eq!(move1_undo_result, Ok(()));
+        assert_eq!(board1, board1_copy);
+
+        let mut board2 = ChessBoard::initialize_from_fen(
+            "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1",
+        )
+        .unwrap();
+        let board2_copy = board2.clone();
+
+        let move2_int = 0b1100001000000000; // a7 - a5
+        let move2_undo_info = board2.make_move(move2_int).unwrap();
+        let move2_undo_result = board2.unmake_move(move2_int, &move2_undo_info);
+
+        assert_eq!(move2_undo_result, Ok(()));
+        assert_eq!(board2, board2_copy);
+
+        let mut board3 = ChessBoard::initialize_from_fen(
+            "rnbqkb1r/pppppppp/8/5n2/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 1",
+        )
+        .unwrap();
+        let board3_copy = board3.clone();
+
+        let move3_int = 0b0111001001010001; // e4 x f5
+        let move3_undo_info = board3.make_move(move3_int).unwrap();
+        let move3_undo_result = board3.unmake_move(move3_int, &move3_undo_info);
+
+        assert_eq!(move3_undo_result, Ok(()));
+        assert_eq!(board3, board3_copy);
+
+        let mut board4 = ChessBoard::initialize_from_fen(
+            "rnbqkbnr/ppp1pppp/8/8/3pP3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1",
+        )
+        .unwrap();
+        let board4_copy = board4.clone();
+
+        let move4_int = 0b0110110101000011; // d4 x e3 en passant
+        let move4_undo_info = board4.make_move(move4_int).unwrap();
+        let move4_undo_result = board4.unmake_move(move4_int, &move4_undo_info);
+
+        assert_eq!(move4_undo_result, Ok(()));
+        assert_eq!(board4, board4_copy);
+
+        let mut board5 = ChessBoard::initialize_from_fen("k7/7P/8/8/8/8/8/K7 w - - 0 1").unwrap();
+        let board5_copy = board5.clone();
+
+        let move5_int = 0b1101111111110100; // h7 - h8 promote to knight
+        let move5_undo_info = board5.make_move(move5_int).unwrap();
+        let move5_undo_result = board5.unmake_move(move5_int, &move5_undo_info);
+
+        assert_eq!(move5_undo_result, Ok(()));
+        assert_eq!(board5, board5_copy);
+
+        let mut board5 = ChessBoard::initialize_from_fen("k7/7P/8/8/8/8/8/K7 w - - 0 1").unwrap();
+        let board5_copy = board5.clone();
+
+        let move5_int = 0b1101111111110101; // h7 - h8 promote to bishop
+        let move5_undo_info = board5.make_move(move5_int).unwrap();
+        let move5_undo_result = board5.unmake_move(move5_int, &move5_undo_info);
+
+        assert_eq!(move5_undo_result, Ok(()));
+        assert_eq!(board5, board5_copy);
+
+        let mut board5 = ChessBoard::initialize_from_fen("k7/7P/8/8/8/8/8/K7 w - - 0 1").unwrap();
+        let board5_copy = board5.clone();
+
+        let move5_int = 0b1101111111110110; // h7 - h8 promote to rook
+        let move5_undo_info = board5.make_move(move5_int).unwrap();
+        let move5_undo_result = board5.unmake_move(move5_int, &move5_undo_info);
+
+        assert_eq!(move5_undo_result, Ok(()));
+        assert_eq!(board5, board5_copy);
+
+        let mut board5 = ChessBoard::initialize_from_fen("k7/7P/8/8/8/8/8/K7 w - - 0 1").unwrap();
+        let board5_copy = board5.clone();
+
+        let move5_int = 0b1101111111110111; // h7 - h8 promote to queen
+        let move5_undo_info = board5.make_move(move5_int).unwrap();
+        let move5_undo_result = board5.unmake_move(move5_int, &move5_undo_info);
+
+        assert_eq!(move5_undo_result, Ok(()));
+        assert_eq!(board5, board5_copy);
+
+        let mut board6 = ChessBoard::initialize_from_fen("k5q1/7P/8/8/8/8/8/K7 w - - 0 1").unwrap();
+        let board6_copy = board6.clone();
+
+        let move6_int = 0b1101111111101011; // h7 x g8 promote to queen
+        let move6_undo_info = board6.make_move(move6_int).unwrap();
+        let move6_undo_result = board6.unmake_move(move6_int, &move6_undo_info);
+
+        assert_eq!(move6_undo_result, Ok(()));
+        assert_eq!(board6, board6_copy);
+
+        let mut board7 =
+            ChessBoard::initialize_from_fen("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1")
+                .unwrap();
+        let board7_copy = board7.clone();
+
+        let move7_int = 0b0001000001100010; // e1 - g1 white kingside castles
+        let move7_undo_info = board7.make_move(move7_int).unwrap();
+        let move7_undo_result = board7.unmake_move(move7_int, &move7_undo_info);
+
+        assert_eq!(move7_undo_result, Ok(()));
+        assert_eq!(board7, board7_copy);
+
+        let mut board7 =
+            ChessBoard::initialize_from_fen("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1")
+                .unwrap();
+        let board7_copy = board7.clone();
+
+        let move7_int = 0b0001000000100010; // e1 - c1 white queenside castles
+        let move7_undo_info = board7.make_move(move7_int).unwrap();
+        let move7_undo_result = board7.unmake_move(move7_int, &move7_undo_info);
+
+        assert_eq!(move7_undo_result, Ok(()));
+        assert_eq!(board7, board7_copy);
+
+        let mut board8 =
+            ChessBoard::initialize_from_fen("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R b KQkq - 0 1")
+                .unwrap();
+        let board8_copy = board8.clone();
+
+        let move8_int = 0b1111001111100010; // e8 - g8 black kingside castles
+        let move8_undo_info = board8.make_move(move8_int).unwrap();
+        let move8_undo_result = board8.unmake_move(move8_int, &move8_undo_info);
+
+        assert_eq!(move8_undo_result, Ok(()));
+        assert_eq!(board8, board8_copy);
+
+        let mut board8 =
+            ChessBoard::initialize_from_fen("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R b KQkq - 0 1")
+                .unwrap();
+        let board8_copy = board8.clone();
+
+        let move8_int = 0b1111001110100010; // e8 - c8 black queenside castles
+        let move8_undo_info = board8.make_move(move8_int).unwrap();
+        let move8_undo_result = board8.unmake_move(move8_int, &move8_undo_info);
+
+        assert_eq!(move8_undo_result, Ok(()));
+        assert_eq!(board8, board8_copy);
+    }
+
+    fn test_generate_zobrist_hash() {
+        let mut board1 = ChessBoard::initialize();
+        board1.make_move(encode_move(8, 16, 0));
+        let mut board2 = ChessBoard::initialize_from_fen(
+            "rnbqkbnr/pppppppp/8/8/P7/8/1PPPPPPP/RNBQKBNR b KQkq a3 0 1",
+        )
+        .unwrap();
+        assert_eq!(
+            board1.generate_zobrist_hash(),
+            board2.generate_zobrist_hash()
+        );
+
+        let mut board3 = ChessBoard::initialize();
+        let mut board4 = ChessBoard::initialize_from_fen(
+            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR b KQkq - 0 1",
+        )
+        .unwrap();
+        assert_ne!(
+            board3.generate_zobrist_hash(),
+            board4.generate_zobrist_hash()
+        );
+    }
 }

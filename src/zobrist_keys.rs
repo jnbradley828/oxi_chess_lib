@@ -918,5 +918,5 @@ pub const ZOBRIST_EP: [u64; 8] = [
     0x94f11e21a0fce965,
 ];
 
-// ZOBRIST_SIDE = side to move (XOR in when black to move)
+// ZOBRIST_SIDE = side to move (XOR in when white to move)
 pub const ZOBRIST_SIDE: u64 = 0x6d45404895d9b830;
