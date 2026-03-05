@@ -1,5 +1,4 @@
 use crate::utils;
-use crate::zobrist_keys;
 use crate::zobrist_keys::ZOBRIST_CASTLING;
 use crate::zobrist_keys::ZOBRIST_EP;
 use crate::zobrist_keys::ZOBRIST_PIECES;
@@ -22,6 +21,7 @@ pub struct ChessBoard {
     pub castling_rights: u8, // uses 4 least significant bits (from most sig to least sig: white kingside, white queenside, black kingside, black queenside)
     pub halfmove_clock: u8,  // tracks half moves since last capture or pawn move.
     pub fullmove_number: u16, // tracks full moves since start of game.
+    pub zobrist_hash: u64,
 }
 
 #[derive(Debug, PartialEq)]
@@ -30,12 +30,13 @@ pub struct UndoInfo {
     castling_rights: u8,
     en_passant_square: Option<u8>,
     captured_type: Option<u8>, // let (pawn, knight, bishop, rook, queen) = (0, 1, 2, 3, 4)
+    zobrist_hash: u64,
 }
 
 /// Creates a new chess board with the standard starting position.
 impl ChessBoard {
     pub fn initialize() -> Self {
-        let board = ChessBoard {
+        let mut board = ChessBoard {
             pawns: 0x00FF00000000FF00,   // pawns at ranks 2 & 7.
             knights: 0x4200000000000042, // knights at b1, g1, b8, & g8.
             bishops: 0x2400000000000024, // bishops at c1, f1, c8, & f8.
@@ -51,13 +52,15 @@ impl ChessBoard {
             castling_rights: 0b1111,
             halfmove_clock: 0,
             fullmove_number: 1,
+            zobrist_hash: 0,
         };
+        board.zobrist_hash = board.generate_zobrist_hash();
         board
     }
 
     /// Creates a new empty chess board. White to move by default.
     pub fn empty() -> Self {
-        Self {
+        let mut board = ChessBoard {
             pawns: 0,
             knights: 0,
             bishops: 0,
@@ -73,7 +76,10 @@ impl ChessBoard {
             castling_rights: 0,
             halfmove_clock: 0,
             fullmove_number: 1,
-        }
+            zobrist_hash: 0,
+        };
+        board.zobrist_hash = board.generate_zobrist_hash();
+        board
     }
 
     /// Creates a new chess board from a FEN string.
@@ -144,7 +150,7 @@ impl ChessBoard {
                 return Err("Invalid en passant square".to_string());
             }
 
-            let board = ChessBoard {
+            let mut board = ChessBoard {
                 pawns: pawns1,
                 knights: knights1,
                 bishops: bishops1,
@@ -164,7 +170,9 @@ impl ChessBoard {
                 castling_rights: castling_rights1,
                 halfmove_clock: fen_components[4].parse::<u8>().unwrap(),
                 fullmove_number: fen_components[5].parse::<u16>().unwrap(),
+                zobrist_hash: 0,
             };
+            board.zobrist_hash = board.generate_zobrist_hash();
 
             return Ok(board);
         }
@@ -219,12 +227,14 @@ impl ChessBoard {
             castling_rights: prev_castling_rights,
             en_passant_square: prev_en_passant,
             captured_type: capture_type,
+            zobrist_hash: self.zobrist_hash,
         };
 
         // check if there is a piece of the color to move at the given square.
         let from_sq_bb: u64 = 1 << from_sqi;
         let to_sq_bb: u64 = 1 << to_sqi;
-        let mut piece_from_type = self.piece_type_at(from_sqi);
+        let orig_piece_from_type = self.piece_type_at(from_sqi); // because piece from type can be changed for promotion handling.
+        let mut piece_from_type = orig_piece_from_type;
 
         if piece_from_type.is_none() {
             return Err("No piece at given square.".to_string());
@@ -240,7 +250,11 @@ impl ChessBoard {
             }
         }
 
-        // update board state: piece locations, en_passant, castling rights, and halfmove clock.
+        // update board state: piece locations, en_passant, castling rights, halfmove clock, and zobrist hash.
+        if self.en_passant != 0 {
+            self.zobrist_hash ^= ZOBRIST_EP[(self.en_passant.trailing_zeros() % 8) as usize];
+        }
+
         if piece_from_type == Some(0) {
             // pawn
             self.pawns &= !from_sq_bb;
@@ -268,8 +282,10 @@ impl ChessBoard {
             if ((from_sqi as i16) - (to_sqi as i16)).abs() == 16 {
                 if self.side_to_move {
                     self.en_passant = to_sq_bb >> 8;
+                    self.zobrist_hash ^= ZOBRIST_EP[(self.en_passant.trailing_zeros() % 8) as usize]; // add new en passant file
                 } else {
                     self.en_passant = to_sq_bb << 8;
+                    self.zobrist_hash ^= ZOBRIST_EP[(self.en_passant.trailing_zeros() % 8) as usize]; // add new en passant file
                 }
             } else {
                 self.en_passant = 0;
@@ -292,10 +308,30 @@ impl ChessBoard {
             self.halfmove_clock += 1;
 
             match from_sqi {
-                0 => self.castling_rights &= !0b0100,
-                7 => self.castling_rights &= !0b1000,
-                56 => self.castling_rights &= !0b0001,
-                63 => self.castling_rights &= !0b0010,
+                0 => {
+                    if self.castling_rights & 0b0100 != 0 {
+                        self.zobrist_hash ^= ZOBRIST_CASTLING[1];
+                    }
+                    self.castling_rights &= !0b0100;
+                },
+                7 => {
+                    if self.castling_rights & 0b1000 != 0 {
+                        self.zobrist_hash ^= ZOBRIST_CASTLING[0];
+                    }
+                    self.castling_rights &= !0b1000;
+                },
+                56 => {
+                    if self.castling_rights & 0b0001 != 0 {
+                        self.zobrist_hash ^= ZOBRIST_CASTLING[3];
+                    }
+                    self.castling_rights &= !0b0001;
+                },
+                63 => {
+                    if self.castling_rights & 0b0010 != 0 {
+                        self.zobrist_hash ^= ZOBRIST_CASTLING[2];
+                    }
+                    self.castling_rights &= !0b0010;
+                },
                 _ => {}
             }
         } else if piece_from_type == Some(4) {
@@ -316,10 +352,16 @@ impl ChessBoard {
                         // c1
                         if self.castling_rights & 0b0100 != 0 {
                             self.rooks &= !0x0000000000000001;
+                            self.zobrist_hash ^= ZOBRIST_PIECES[0][3];
                             self.rooks |= 0x00000000000000008;
+                            self.zobrist_hash ^= ZOBRIST_PIECES[3][3];
                             self.white_pieces &= !0x0000000000000001;
                             self.white_pieces |= 0x00000000000000008;
+                            if self.castling_rights & 0b1000 != 0 {
+                                self.zobrist_hash ^= ZOBRIST_CASTLING[0];
+                            }
                             self.castling_rights &= !0b1100;
+                            self.zobrist_hash ^= ZOBRIST_CASTLING[1];
                         } else {
                             return Err("white cannot castle queenside.".to_string());
                         }
@@ -327,10 +369,16 @@ impl ChessBoard {
                         // g1
                         if self.castling_rights & 0b1000 != 0 {
                             self.rooks &= !0x0000000000000080;
+                            self.zobrist_hash ^= ZOBRIST_PIECES[7][3];
                             self.rooks |= 0x00000000000000020;
+                            self.zobrist_hash ^= ZOBRIST_PIECES[5][3];
                             self.white_pieces &= !0x0000000000000080;
                             self.white_pieces |= 0x00000000000000020;
+                            if self.castling_rights & 0b0100 != 0 {
+                                self.zobrist_hash ^= ZOBRIST_CASTLING[1];
+                            }
                             self.castling_rights &= !0b1100;
+                            self.zobrist_hash ^= ZOBRIST_CASTLING[0];
                         } else {
                             return Err("white cannot castle kingside.".to_string());
                         }
@@ -342,10 +390,16 @@ impl ChessBoard {
                         // c8
                         if self.castling_rights & 0b0001 != 0 {
                             self.rooks &= !0x0100000000000000;
+                            self.zobrist_hash ^= ZOBRIST_PIECES[56][9];
                             self.rooks |= 0x0800000000000000;
+                            self.zobrist_hash ^= ZOBRIST_PIECES[59][9];
                             self.black_pieces &= !0x0100000000000000;
                             self.black_pieces |= 0x0800000000000000;
+                            if self.castling_rights & 0b0010 != 0 {
+                                self.zobrist_hash ^= ZOBRIST_CASTLING[2];
+                            }
                             self.castling_rights &= !0b0011;
+                            self.zobrist_hash ^= ZOBRIST_CASTLING[3];
                         } else {
                             return Err("black cannot castle queenside.".to_string());
                         }
@@ -353,10 +407,16 @@ impl ChessBoard {
                         // g8
                         if self.castling_rights & 0b0010 != 0 {
                             self.rooks &= !0x8000000000000000;
+                            self.zobrist_hash ^= ZOBRIST_PIECES[63][9];
                             self.rooks |= 0x2000000000000000;
+                            self.zobrist_hash ^= ZOBRIST_PIECES[61][9];
                             self.black_pieces &= !0x8000000000000000;
                             self.black_pieces |= 0x2000000000000000;
+                            if self.castling_rights & 0b0001 != 0 {
+                                self.zobrist_hash ^= ZOBRIST_CASTLING[3];
+                            }
                             self.castling_rights &= !0b0011;
+                            self.zobrist_hash ^= ZOBRIST_CASTLING[2];
                         } else {
                             return Err("white cannot castle kingside.".to_string());
                         }
@@ -366,8 +426,22 @@ impl ChessBoard {
                 }
             } else {
                 if self.side_to_move {
+                    if self.castling_rights & 0b1000 != 0 {
+                        self.zobrist_hash ^= ZOBRIST_CASTLING[0];
+                    }
+                    if self.castling_rights & 0b0100 != 0 {
+                        self.zobrist_hash ^= ZOBRIST_CASTLING[1];
+                    }
                     self.castling_rights &= !0b1100;
+
+
                 } else {
+                    if self.castling_rights & 0b0010 != 0 {
+                        self.zobrist_hash ^= ZOBRIST_CASTLING[2];
+                    }
+                    if self.castling_rights & 0b0001 != 0 {
+                        self.zobrist_hash ^= ZOBRIST_CASTLING[3];
+                    }
                     self.castling_rights &= !0b0011;
                 }
             }
@@ -381,8 +455,10 @@ impl ChessBoard {
                 self.pawns &= !(to_sq_bb >> 8);
                 if self.side_to_move {
                     self.black_pieces &= !(to_sq_bb >> 8);
+                    self.zobrist_hash ^= ZOBRIST_PIECES[(to_sqi - 8) as usize][6];
                 } else {
                     self.white_pieces &= !(to_sq_bb << 8);
+                    self.zobrist_hash ^= ZOBRIST_PIECES[(to_sqi + 8) as usize][0];
                 }
             } else {
                 self.halfmove_clock = 0;
@@ -394,10 +470,30 @@ impl ChessBoard {
                     Some(3) => {
                         if capture_type != piece_from_type {self.rooks &= !to_sq_bb};
                         match to_sqi {
-                            0 => self.castling_rights &= !0b0100,
-                            7 => self.castling_rights &= !0b1000,
-                            56 => self.castling_rights &= !0b0001,
-                            63 => self.castling_rights &= !0b0010,
+                            0 => {
+                                if self.castling_rights & 0b0100 != 0 {
+                                    self.zobrist_hash ^= ZOBRIST_CASTLING[1];
+                                }
+                                self.castling_rights &= !0b0100;
+                            },
+                            7 => {
+                                if self.castling_rights & 0b1000 != 0 {
+                                    self.zobrist_hash ^= ZOBRIST_CASTLING[0];
+                                }
+                                self.castling_rights &= !0b1000;
+                            },
+                            56 => {
+                                if self.castling_rights & 0b0001 != 0 {
+                                    self.zobrist_hash ^= ZOBRIST_CASTLING[3];
+                                }
+                                self.castling_rights &= !0b0001;
+                            },
+                            63 => {
+                                if self.castling_rights & 0b0010 != 0 {
+                                    self.zobrist_hash ^= ZOBRIST_CASTLING[2];
+                                }
+                                self.castling_rights &= !0b0010;
+                            },
                             _ => {}
                         };
                     }
@@ -414,13 +510,29 @@ impl ChessBoard {
 
         if self.side_to_move {
             self.white_pieces &= !from_sq_bb;
+            self.zobrist_hash ^= ZOBRIST_PIECES[from_sqi as usize][orig_piece_from_type.unwrap() as usize];
             self.white_pieces |= to_sq_bb;
+            self.zobrist_hash ^= ZOBRIST_PIECES[to_sqi as usize][piece_from_type.unwrap() as usize];
             self.side_to_move = false;
+            self.zobrist_hash ^= ZOBRIST_SIDE;
+
+            match capture_type {
+                None => {},
+                _ => if flag != 3 {self.zobrist_hash ^= ZOBRIST_PIECES[to_sqi as usize][capture_type.unwrap() as usize + 6]},
+            }
         } else {
             self.black_pieces &= !from_sq_bb;
+            self.zobrist_hash ^= ZOBRIST_PIECES[from_sqi as usize][(orig_piece_from_type.unwrap() as usize) + 6];
             self.black_pieces |= to_sq_bb;
+            self.zobrist_hash ^= ZOBRIST_PIECES[to_sqi as usize][(piece_from_type.unwrap() + 6) as usize];
             self.side_to_move = true;
+            self.zobrist_hash ^= ZOBRIST_SIDE;
             self.fullmove_number += 1;
+
+            match capture_type {
+                None => {},
+                _ => if flag != 3 {self.zobrist_hash ^= ZOBRIST_PIECES[to_sqi as usize][capture_type.unwrap() as usize]},
+            }
         }
 
         return Ok(undo_info);
@@ -582,6 +694,8 @@ impl ChessBoard {
         } else {
             self.side_to_move = true;
         }
+
+        self.zobrist_hash = undo_info.zobrist_hash;
         return Ok(());
     }
 
@@ -623,13 +737,13 @@ impl ChessBoard {
         let mut castling_bb = self.castling_rights;
         while castling_bb != 0 {
             let cr = castling_bb.trailing_zeros() as usize;
-            hash ^= ZOBRIST_CASTLING[cr];
+            hash ^= ZOBRIST_CASTLING[3 - cr];
             castling_bb &= castling_bb - 1;
         }
 
         // xor with en passant file
         if self.en_passant != 0 {
-            hash ^= ZOBRIST_EP[(1 << self.en_passant) % 8];
+            hash ^= ZOBRIST_EP[(self.en_passant.trailing_zeros() % 8) as usize];
         }
 
         if self.side_to_move {
@@ -1056,6 +1170,7 @@ mod tests {
     #[test]
     pub fn test_make_move() {
         let mut board1 = ChessBoard::initialize();
+        let board1_zob = board1.zobrist_hash;
 
         let move1_int = 0b0011000111000000; // e2-e4
         let move1_undo = board1.make_move(move1_int);
@@ -1069,11 +1184,13 @@ mod tests {
             castling_rights: 0b1111,
             en_passant_square: None,
             captured_type: None,
+            zobrist_hash: board1_zob,
         });
 
         assert_eq!(board1, correct_resulting_board1);
         assert_eq!(move1_undo, correct_undo1);
 
+        let board1_zob = board1.zobrist_hash;
         let move2_int = 0b1111101011010000; // g8-f6
         let move2_undo = board1.make_move(move2_int);
 
@@ -1086,6 +1203,7 @@ mod tests {
             castling_rights: 0b1111,
             en_passant_square: Some(20),
             captured_type: None,
+            zobrist_hash: board1_zob,
         });
 
         assert_eq!(board1, correct_resulting_board2);
@@ -1096,6 +1214,7 @@ mod tests {
         let move4_int = 0b1101111011110000; // h7-h6
         board1.make_move(move4_int);
 
+        let board1_zob = board1.zobrist_hash;
         let move5_int = 0b1001001011010001; // e5 x f6;
         let move5_undo = board1.make_move(move5_int);
         let correct_resulting_board5 = ChessBoard::initialize_from_fen(
@@ -1108,6 +1227,7 @@ mod tests {
             castling_rights: 0b1111,
             en_passant_square: None,
             captured_type: Some(1),
+            zobrist_hash: board1_zob,
         });
 
         assert_eq!(board1, correct_resulting_board5);
@@ -1117,6 +1237,7 @@ mod tests {
             "rnbqkbnr/ppp1pppp/8/3pP3/8/8/PPPP1PPP/RNBQKBNR w KQkq d6 0 1",
         )
         .unwrap();
+        let board2_zob = board2.zobrist_hash;
 
         let move1_int = 0b1001001010110011; // e5 x d5 en passant
         let move1_undo = board2.make_move(move1_int);
@@ -1130,6 +1251,7 @@ mod tests {
             castling_rights: 0b1111,
             en_passant_square: Some(43),
             captured_type: Some(0),
+            zobrist_hash: board2_zob,
         });
 
         assert_eq!(board2, correct_resulting_board1);
@@ -1139,6 +1261,7 @@ mod tests {
             "rnbqk2r/pppp1ppp/5n2/2b1p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 0 1",
         )
         .unwrap();
+        let board3_zob = board3.zobrist_hash;
 
         let move1_int = 0b0001000001100010; // e1 - g1 (white kingside castle)
         let move1_undo = board3.make_move(move1_int);
@@ -1152,11 +1275,13 @@ mod tests {
             castling_rights: 0b1111,
             en_passant_square: None,
             captured_type: None,
+            zobrist_hash: board3_zob,
         });
 
         assert_eq!(board3, correct_resulting_board1);
         assert_eq!(move1_undo, correct_undo1);
 
+        let board3_zob = board3.zobrist_hash;
         let move2_int = 0b1111001111100010; // e8 - g8 (black kingside castle)
         let move2_undo = board3.make_move(move2_int);
 
@@ -1169,6 +1294,7 @@ mod tests {
             castling_rights: 0b11,
             en_passant_square: None,
             captured_type: None,
+            zobrist_hash: board3_zob,
         });
 
         assert_eq!(board3, correct_resulting_board2);
@@ -1178,6 +1304,7 @@ mod tests {
             "r3kbnr/pppqpppp/2n5/3p1b2/3P1B2/2N1P3/PPPQ1PPP/R3KBNR b KQkq - 0 1",
         )
         .unwrap();
+        let board4_zob = board4.zobrist_hash;
 
         let move1_int = 0b1111001110100010; // e8 - c8 (black queenside castle)
         let move1_undo = board4.make_move(move1_int);
@@ -1191,11 +1318,13 @@ mod tests {
             castling_rights: 0b1111,
             en_passant_square: None,
             captured_type: None,
+            zobrist_hash: board4_zob,
         });
 
         assert_eq!(board4, correct_resulting_board1);
         assert_eq!(move1_undo, correct_undo1);
 
+        let board4_zob = board4.zobrist_hash;
         let move2_int = 0b0001000000100010; // e1 - c1 (white queenside castle)
         let move2_undo = board4.make_move(move2_int);
 
@@ -1208,6 +1337,7 @@ mod tests {
             castling_rights: 0b1100,
             en_passant_square: None,
             captured_type: None,
+            zobrist_hash: board4_zob,
         });
 
         assert_eq!(board4, correct_resulting_board2);
@@ -1215,6 +1345,7 @@ mod tests {
 
         let mut board5 =
             ChessBoard::initialize_from_fen("r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1").unwrap();
+        let board5_zob = board5.zobrist_hash;
 
         let move1_int = 0b0000000000010000; // a1 - b1
         let move1_undo = board5.make_move(move1_int);
@@ -1226,11 +1357,13 @@ mod tests {
             castling_rights: 0b1111,
             en_passant_square: None,
             captured_type: None,
+            zobrist_hash: board5_zob,
         });
 
         assert_eq!(board5, correct_resulting_board1);
         assert_eq!(move1_undo, correct_undo1);
 
+        let board5_zob = board5.zobrist_hash;
         let move2_int = 0b1110001110010000; // a8 - b8
         let move2_undo = board5.make_move(move2_int);
 
@@ -1241,11 +1374,13 @@ mod tests {
             castling_rights: 0b1011,
             en_passant_square: None,
             captured_type: None,
+            zobrist_hash: board5_zob,
         });
 
         assert_eq!(board5, correct_resulting_board2);
         assert_eq!(move2_undo, correct_undo2);
 
+        let board5_zob = board5.zobrist_hash;
         let move3_int = 0b0001110001100000; // h1 - g1
         let move3_undo = board5.make_move(move3_int);
 
@@ -1256,11 +1391,13 @@ mod tests {
             castling_rights: 0b1010,
             en_passant_square: None,
             captured_type: None,
+            zobrist_hash: board5_zob,
         });
 
         assert_eq!(board5, correct_resulting_board3);
         assert_eq!(move3_undo, correct_undo3);
 
+        let board5_zob = board5.zobrist_hash;
         let move4_int = 0b1111111111100000; // h8 - g8
         let move4_undo = board5.make_move(move4_int);
 
@@ -1271,6 +1408,7 @@ mod tests {
             castling_rights: 0b0010,
             en_passant_square: None,
             captured_type: None,
+            zobrist_hash: board5_zob,
         });
 
         assert_eq!(board5, correct_resulting_board4);
@@ -1278,6 +1416,7 @@ mod tests {
 
         let mut board6 =
             ChessBoard::initialize_from_fen("r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1").unwrap();
+        let board6_zob = board6.zobrist_hash;
 
         let move1_int = 0b0000001110000001; // a1 x a8
         let move1_undo = board6.make_move(move1_int);
@@ -1289,12 +1428,14 @@ mod tests {
             castling_rights: 0b1111,
             en_passant_square: None,
             captured_type: Some(3),
+            zobrist_hash: board6_zob,
         });
 
         assert_eq!(board6, correct_resulting_board1);
         assert_eq!(move1_undo, correct_undo1);
 
         let mut board7 = ChessBoard::initialize_from_fen("8/P7/8/8/8/8/8/K1k5 w - - 0 1").unwrap();
+        let board7_zob = board7.zobrist_hash;
 
         let move1_int = 0b1100001110000111; // a7 - a8 promote to q
         let move1_undo = board7.make_move(move1_int);
@@ -1306,12 +1447,14 @@ mod tests {
             castling_rights: 0,
             en_passant_square: None,
             captured_type: None,
+            zobrist_hash: board7_zob,
         });
 
         assert_eq!(board7, correct_resulting_board1);
         assert_eq!(move1_undo, correct_undo1);
 
         let mut board7 = ChessBoard::initialize_from_fen("8/P7/8/8/8/8/8/K1k5 w - - 0 1").unwrap();
+        let board7_zob = board7.zobrist_hash;
 
         let move1_int = 0b1100001110000110; // a7 - a8 promote to r
         let move1_undo = board7.make_move(move1_int);
@@ -1323,12 +1466,14 @@ mod tests {
             castling_rights: 0,
             en_passant_square: None,
             captured_type: None,
+            zobrist_hash: board7_zob,
         });
 
         assert_eq!(board7, correct_resulting_board1);
         assert_eq!(move1_undo, correct_undo1);
 
         let mut board7 = ChessBoard::initialize_from_fen("8/P7/8/8/8/8/8/K1k5 w - - 0 1").unwrap();
+        let board7_zob = board7.zobrist_hash;
 
         let move1_int = 0b1100001110000101; // a7 - a8 promote to b
         let move1_undo = board7.make_move(move1_int);
@@ -1340,12 +1485,14 @@ mod tests {
             castling_rights: 0,
             en_passant_square: None,
             captured_type: None,
+            zobrist_hash: board7_zob,
         });
 
         assert_eq!(board7, correct_resulting_board1);
         assert_eq!(move1_undo, correct_undo1);
 
         let mut board7 = ChessBoard::initialize_from_fen("8/P7/8/8/8/8/8/K1k5 w - - 0 1").unwrap();
+        let board7_zob = board7.zobrist_hash;
 
         let move1_int = 0b1100001110000100; // a7 - a8 promote to n
         let move1_undo = board7.make_move(move1_int);
@@ -1357,12 +1504,14 @@ mod tests {
             castling_rights: 0,
             en_passant_square: None,
             captured_type: None,
+            zobrist_hash: board7_zob,
         });
 
         assert_eq!(board7, correct_resulting_board1);
         assert_eq!(move1_undo, correct_undo1);
 
         let mut board8 = ChessBoard::initialize_from_fen("k1K5/8/8/8/8/8/p7/8 b - - 0 1").unwrap();
+        let board8_zob = board8.zobrist_hash;
 
         let move1_int = 0b0010000000000111; // a2 - a1 promote to q
         let move1_undo = board8.make_move(move1_int);
@@ -1374,12 +1523,14 @@ mod tests {
             castling_rights: 0,
             en_passant_square: None,
             captured_type: None,
+            zobrist_hash: board8_zob,
         });
 
         assert_eq!(board8, correct_resulting_board1);
         assert_eq!(move1_undo, correct_undo1);
 
         let mut board8 = ChessBoard::initialize_from_fen("k1K5/8/8/8/8/8/p7/8 b - - 0 1").unwrap();
+        let board8_zob = board8.zobrist_hash;
 
         let move1_int = 0b0010000000000110; // a2 - a1 promote to r
         let move1_undo = board8.make_move(move1_int);
@@ -1391,12 +1542,14 @@ mod tests {
             castling_rights: 0,
             en_passant_square: None,
             captured_type: None,
+            zobrist_hash: board8_zob,
         });
 
         assert_eq!(board8, correct_resulting_board1);
         assert_eq!(move1_undo, correct_undo1);
 
         let mut board8 = ChessBoard::initialize_from_fen("k1K5/8/8/8/8/8/p7/8 b - - 0 1").unwrap();
+        let board8_zob = board8.zobrist_hash;
 
         let move1_int = 0b0010000000000101; // a2 - a1 promote to b
         let move1_undo = board8.make_move(move1_int);
@@ -1408,12 +1561,14 @@ mod tests {
             castling_rights: 0,
             en_passant_square: None,
             captured_type: None,
+            zobrist_hash: board8_zob,
         });
 
         assert_eq!(board8, correct_resulting_board1);
         assert_eq!(move1_undo, correct_undo1);
 
         let mut board8 = ChessBoard::initialize_from_fen("k1K5/8/8/8/8/8/p7/8 b - - 0 1").unwrap();
+        let board8_zob = board8.zobrist_hash;
 
         let move1_int = 0b0010000000000100; // a2 - a1 promote to n
         let move1_undo = board8.make_move(move1_int);
@@ -1425,6 +1580,7 @@ mod tests {
             castling_rights: 0,
             en_passant_square: None,
             captured_type: None,
+            zobrist_hash: board8_zob,
         });
 
         assert_eq!(board8, correct_resulting_board1);
@@ -1432,6 +1588,7 @@ mod tests {
 
         let mut board9 =
             ChessBoard::initialize_from_fen("k1K5/8/8/8/8/8/p7/1R6 b - - 0 1").unwrap();
+        let board9_zob = board9.zobrist_hash;
 
         let move1_int = 0b0010000000011011; // a2 x b1 promote to q
         let move1_undo = board9.make_move(move1_int);
@@ -1443,6 +1600,7 @@ mod tests {
             castling_rights: 0,
             en_passant_square: None,
             captured_type: Some(3),
+            zobrist_hash: board9_zob,
         });
 
         assert_eq!(board9, correct_resulting_board1);
@@ -1450,6 +1608,7 @@ mod tests {
 
         let mut board9 =
             ChessBoard::initialize_from_fen("k1K5/8/8/8/8/8/p7/1R6 b - - 0 1").unwrap();
+        let board9_zob = board9.zobrist_hash;
 
         let move1_int = 0b0010000000011010; // a2 x b1 promote to r
         let move1_undo = board9.make_move(move1_int);
@@ -1461,6 +1620,7 @@ mod tests {
             castling_rights: 0,
             en_passant_square: None,
             captured_type: Some(3),
+            zobrist_hash: board9_zob,
         });
 
         assert_eq!(board9, correct_resulting_board1);
