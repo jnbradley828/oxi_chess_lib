@@ -255,6 +255,11 @@ pub fn decode_move(move_i: u16) -> [u8; 3] {
     return [from_sqi, to_sqi, flag];
 }
 
+pub fn square_color(square_i: u8) -> bool {
+    // true = light, false = dark
+    ((square_i / 8) + (square_i % 8)) % 2 != 0
+}
+
 // Unit Tests
 #[cfg(test)]
 mod tests {
