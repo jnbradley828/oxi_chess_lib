@@ -1,6 +1,6 @@
 use crate::board::ChessBoard;
 use crate::moves;
-use crate::{board, rules};
+use crate::{board, rules, utils};
 use rustc_hash::FxHashMap;
 
 #[derive(Debug, PartialEq, Eq)]
@@ -53,6 +53,11 @@ impl ChessGame {
         } else {
             return Err("Invalid move".to_string());
         }
+    }
+
+    pub fn make_move_from_uci(&mut self, uci_move: &str) -> Result<GameResult, String> {
+        let movei = utils::encode_from_uci(uci_move).unwrap();
+        return self.make_move(movei);
     }
 
     pub fn check_result(&mut self) -> GameResult {
