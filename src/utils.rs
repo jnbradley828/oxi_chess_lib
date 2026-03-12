@@ -260,6 +260,47 @@ pub fn square_color(square_i: u8) -> bool {
     ((square_i / 8) + (square_i % 8)) % 2 != 0
 }
 
+pub fn sq_to_u8(square: &str) -> Result<u8, String> {
+    if square.chars().count() != 2 {
+        return Err("Invalid square: too many characters.".to_string());
+    }
+    let mut sqi = 0;
+    let file = square.chars().nth(0).unwrap();
+    let rank = square.chars().nth(1).unwrap();
+    if !(FILES.contains(&file) && RANKS.contains(&rank)) {
+        return Err("Invalid square: invalid file or rank.".to_string());
+    }
+
+    sqi += (rank.to_digit(10).unwrap() as u8 - 1) * 8;
+    let file_modifier = (file as u8 - b'a') as u8;
+    sqi += file_modifier;
+
+    return Ok(sqi);
+}
+
+// returns empty flag unless promotion piece is specified. If promotion, non-capture is assumed.
+// In game::make_uci_move(), it will infer capture and alter the flag if necessary.
+pub fn encode_from_uci(uci_move: &str) -> Result<u16, String> {
+    let sqi_1: u8 = sq_to_u8(&uci_move[0..=1]).unwrap();
+    let sqi_2: u8 = sq_to_u8(&uci_move[2..=3]).unwrap();
+
+    let flag: u8;
+    if uci_move.chars().count() == 5 {
+        match uci_move.chars().nth(4).unwrap() {
+            'n' => flag = 4,
+            'b' => flag = 5,
+            'r' => flag = 6,
+            'q' => flag = 7,
+            _ => return Err("Invalid promotion type.".to_string()),
+        };
+    } else {
+        flag = 0;
+    }
+
+    let movei = encode_move(sqi_1, sqi_2, flag);
+    return Ok(movei);
+}
+
 // Unit Tests
 #[cfg(test)]
 mod tests {
@@ -537,73 +578,87 @@ mod tests {
         );
     }
 
-    #[cfg(test)]
-    mod tests {
-        use super::*;
-        #[test]
-        fn test_squares_above() {
-            // a1
-            let square1: &str = "a1";
-            let sq1: u64 = square_to_bb(square1).unwrap();
-            assert_eq!(squares_above(&sq1), 0xFFFFFFFFFFFFFF00);
-            // g7
-            let square2: &str = "g7";
-            let sq2: u64 = square_to_bb(square2).unwrap();
-            assert_eq!(squares_above(&sq2), 0xFF00000000000000);
-        }
+    #[test]
+    fn test_squares_above() {
+        // a1
+        let square1: &str = "a1";
+        let sq1: u64 = square_to_bb(square1).unwrap();
+        assert_eq!(squares_above(&sq1), 0xFFFFFFFFFFFFFF00);
+        // g7
+        let square2: &str = "g7";
+        let sq2: u64 = square_to_bb(square2).unwrap();
+        assert_eq!(squares_above(&sq2), 0xFF00000000000000);
+    }
 
-        #[test]
-        fn test_squares_below() {
-            // a1
-            let square1: &str = "a1";
-            let sq1: u64 = square_to_bb(square1).unwrap();
-            assert_eq!(squares_below(&sq1), 0);
-            // g7
-            let square2: &str = "g7";
-            let sq2: u64 = square_to_bb(square2).unwrap();
-            assert_eq!(squares_below(&sq2), 0x0000FFFFFFFFFFFF);
-        }
+    #[test]
+    fn test_squares_below() {
+        // a1
+        let square1: &str = "a1";
+        let sq1: u64 = square_to_bb(square1).unwrap();
+        assert_eq!(squares_below(&sq1), 0);
+        // g7
+        let square2: &str = "g7";
+        let sq2: u64 = square_to_bb(square2).unwrap();
+        assert_eq!(squares_below(&sq2), 0x0000FFFFFFFFFFFF);
+    }
 
-        #[test]
-        fn test_squares_left() {
-            // a1
-            let square1: &str = "a1";
-            let sq1: u64 = square_to_bb(square1).unwrap();
-            assert_eq!(squares_left(&sq1), 0);
-            // g7
-            let square2: &str = "g7";
-            let sq2: u64 = square_to_bb(square2).unwrap();
-            assert_eq!(squares_left(&sq2), 0x3F3F3F3F3F3F3F3F);
-        }
+    #[test]
+    fn test_squares_left() {
+        // a1
+        let square1: &str = "a1";
+        let sq1: u64 = square_to_bb(square1).unwrap();
+        assert_eq!(squares_left(&sq1), 0);
+        // g7
+        let square2: &str = "g7";
+        let sq2: u64 = square_to_bb(square2).unwrap();
+        assert_eq!(squares_left(&sq2), 0x3F3F3F3F3F3F3F3F);
+    }
 
-        #[test]
-        fn test_squares_right() {
-            // a1
-            let square1: &str = "a1";
-            let sq1: u64 = square_to_bb(square1).unwrap();
-            assert_eq!(squares_right(&sq1), 0xFEFEFEFEFEFEFEFE);
-            // g7
-            let square2: &str = "g7";
-            let sq2: u64 = square_to_bb(square2).unwrap();
-            assert_eq!(squares_right(&sq2), 0x8080808080808080);
-        }
+    #[test]
+    fn test_squares_right() {
+        // a1
+        let square1: &str = "a1";
+        let sq1: u64 = square_to_bb(square1).unwrap();
+        assert_eq!(squares_right(&sq1), 0xFEFEFEFEFEFEFEFE);
+        // g7
+        let square2: &str = "g7";
+        let sq2: u64 = square_to_bb(square2).unwrap();
+        assert_eq!(squares_right(&sq2), 0x8080808080808080);
+    }
 
-        #[test]
-        fn test_encode_move() {
-            let from: u8 = 30;
-            let to: u8 = 50;
-            let flag: u8 = 8;
+    #[test]
+    fn test_encode_move() {
+        let from: u8 = 30;
+        let to: u8 = 50;
+        let flag: u8 = 8;
 
-            let encoded_move = encode_move(from, to, flag);
-            assert_eq!(encoded_move, 0b0111101100101000);
-        }
+        let encoded_move = encode_move(from, to, flag);
+        assert_eq!(encoded_move, 0b0111101100101000);
+    }
 
-        #[test]
-        fn test_decode_move() {
-            let move_i = 0b1100110101011011;
-            let move_i_decoded: [u8; 3] = [0b110011, 0b010101, 0b1011];
+    #[test]
+    fn test_decode_move() {
+        let move_i = 0b1100110101011011;
+        let move_i_decoded: [u8; 3] = [0b110011, 0b010101, 0b1011];
 
-            assert_eq!(decode_move(move_i), move_i_decoded);
-        }
+        assert_eq!(decode_move(move_i), move_i_decoded);
+    }
+
+    #[test]
+    fn test_sq_to_u8() {
+        let sq = "e4";
+        assert_eq!(sq_to_u8(&sq).unwrap(), 28);
+
+        let sq = "f8";
+        assert_eq!(sq_to_u8(&sq).unwrap(), 61);
+    }
+
+    #[test]
+    fn test_encode_from_uci() {
+        let uci_move = "d2d4";
+        assert_eq!(encode_from_uci(uci_move).unwrap(), encode_move(11, 27, 0));
+
+        let uci_move = "h2h1q";
+        assert_eq!(encode_from_uci(uci_move).unwrap(), encode_move(15, 7, 7));
     }
 }
