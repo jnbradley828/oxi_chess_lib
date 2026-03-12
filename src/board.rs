@@ -6,7 +6,7 @@ use crate::zobrist_keys::ZOBRIST_SIDE;
 
 /// Struct representing a chess board.
 /// We will let the least significant bit represent the a1 square.
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Eq)]
 pub struct ChessBoard {
     pub pawns: u64,
     pub knights: u64,
@@ -24,7 +24,7 @@ pub struct ChessBoard {
     pub zobrist_hash: u64,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct UndoInfo {
     halfmove_clock: u8,
     castling_rights: u8,
