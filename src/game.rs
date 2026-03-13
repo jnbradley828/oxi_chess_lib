@@ -47,7 +47,7 @@ impl ChessGame {
             *self
                 .positions_count
                 .entry(self.board.zobrist_hash)
-                .or_insert(1) += 1;
+                .or_insert(0) += 1;
             self.result = self.check_result();
             return Ok(self.result);
         } else {
@@ -130,6 +130,7 @@ pub enum DrawReason {
     FiftyMoveRule,
     ThreefoldRepitition,
     InsufficientMaterial,
+    Agreement,
 }
 
 #[cfg(test)]

@@ -287,8 +287,8 @@ pub fn encode_from_uci(uci_move: &str) -> Result<u16, String> {
         return Err("Invalid move.".to_string());
     }
 
-    let sqi_1: u8 = sq_to_u8(&uci_move[0..=1]).unwrap();
-    let sqi_2: u8 = sq_to_u8(&uci_move[2..=3]).unwrap();
+    let sqi_1: u8 = sq_to_u8(&uci_move[0..=1])?;
+    let sqi_2: u8 = sq_to_u8(&uci_move[2..=3])?;
 
     let flag: u8;
     if uci_move.chars().count() == 5 {
