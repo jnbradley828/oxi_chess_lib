@@ -1,5 +1,7 @@
 // this file defines many helpful utilities used in other modules.
 
+use crate::board::ChessBoard;
+
 pub const fn on_a_file(piece_location: u64) -> bool {
     // if more than one bit = 1: raise error.
 
@@ -281,6 +283,10 @@ pub fn sq_to_u8(square: &str) -> Result<u8, String> {
 // returns empty flag unless promotion piece is specified. If promotion, non-capture is assumed.
 // In game::make_uci_move(), it will infer capture and alter the flag if necessary.
 pub fn encode_from_uci(uci_move: &str) -> Result<u16, String> {
+    if ![4, 5].contains(&uci_move.len()) {
+        return Err("Invalid move.".to_string());
+    }
+
     let sqi_1: u8 = sq_to_u8(&uci_move[0..=1]).unwrap();
     let sqi_2: u8 = sq_to_u8(&uci_move[2..=3]).unwrap();
 
@@ -299,6 +305,39 @@ pub fn encode_from_uci(uci_move: &str) -> Result<u16, String> {
 
     let movei = encode_move(sqi_1, sqi_2, flag);
     return Ok(movei);
+}
+
+pub fn render_board(board: &ChessBoard) {
+    let mut output_array = [' '; 64]; // a1 to h8
+    for i in 0..=63 {
+        let iu = i as usize;
+        match board.piece_type_at(i) {
+            None => {}
+            Some(0) => output_array[iu] = 'p',
+            Some(1) => output_array[iu] = 'n',
+            Some(2) => output_array[iu] = 'b',
+            Some(3) => output_array[iu] = 'r',
+            Some(4) => output_array[iu] = 'q',
+            Some(5) => output_array[iu] = 'k',
+            _ => {}
+        }
+        let sq_bb: u64 = 1 << i;
+        if sq_bb & board.white_pieces != 0 {
+            output_array[iu] = output_array[iu].to_ascii_uppercase();
+        }
+    }
+
+    // reformat for printing by reversing ranks
+    for (i, rank) in output_array.chunks(8).rev().enumerate() {
+        let rank_val = 8 - i;
+        print!("{rank_val}  ");
+        let output_line: String = rank.iter().collect();
+        for char in output_line.chars() {
+            print!("[{char}]");
+        }
+        println!();
+    }
+    println!("\n    a  b  c  d  e  f  g  h")
 }
 
 // Unit Tests

@@ -56,8 +56,25 @@ impl ChessGame {
     }
 
     pub fn make_move_from_uci(&mut self, uci_move: &str) -> Result<GameResult, String> {
-        let movei = utils::encode_from_uci(uci_move).unwrap();
-        return self.make_move(movei);
+        let movei = utils::encode_from_uci(uci_move)?;
+        if (movei << 12) == 0 {
+            // no flag is given
+            for lmovei in &self.legal_moves {
+                if lmovei >> 4 == movei >> 4 {
+                    return self.make_move(*lmovei);
+                }
+            }
+        } else {
+            if self.legal_moves.contains(&movei) {
+                // promotion
+                return self.make_move(movei);
+            } else if self.legal_moves.contains(&(movei + 4)) {
+                // promotion w capture
+                return self.make_move(movei + 4);
+            }
+        }
+
+        return Err("invalid move".to_string());
     }
 
     pub fn check_result(&mut self) -> GameResult {
