@@ -637,7 +637,7 @@ pub fn get_nonpk_plmoves(board: &board::ChessBoard) -> Vec<u16> {
     return moves;
 }
 
-fn get_king_plmoves(board: &board::ChessBoard) -> Vec<u16> {
+pub fn get_king_plmoves(board: &board::ChessBoard) -> Vec<u16> {
     let mut moves: Vec<u16> = Vec::new();
     let king_bb: u64;
     if board.side_to_move {
@@ -689,7 +689,7 @@ fn get_king_plmoves(board: &board::ChessBoard) -> Vec<u16> {
                 moves.push(utils::encode_move(60, 62, 2));
             }
         }
-        if board.castling_rights & 0b00001 != 0 {
+        if board.castling_rights & 0b0001 != 0 {
             // black queenside castle
             if board.piece_type_at(57).is_none()
                 && board.piece_type_at(58).is_none()
@@ -731,9 +731,9 @@ pub fn test_plmove_legality(board: &mut board::ChessBoard, move_i: u16) -> bool 
         let in_between_sqs: u64;
         match move_decoded[1] {
             // match the to_sq to determine which in-between squares to check (includes target sq)
-            2 => in_between_sqs = 0xE,
+            2 => in_between_sqs = 0xC,
             6 => in_between_sqs = 0x06,
-            58 => in_between_sqs = 0x0E00000000000000,
+            58 => in_between_sqs = 0x0C00000000000000,
             62 => in_between_sqs = 0x6000000000000000,
             _ => return false,
         }
