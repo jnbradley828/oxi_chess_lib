@@ -361,6 +361,49 @@ pub fn render_board(board: &ChessBoard) {
     println!("\n    a  b  c  d  e  f  g  h")
 }
 
+pub fn check_integrity(board: &ChessBoard) -> bool {
+    let all_piece_types =
+        board.pawns | board.knights | board.bishops | board.rooks | board.queens | board.kings;
+    let all_colors = board.white_pieces | board.black_pieces;
+
+    board.pawns & board.knights == 0
+        && board.pawns & board.bishops == 0
+        && board.pawns & board.rooks == 0
+        && board.pawns & board.queens == 0
+        && board.pawns & board.kings == 0
+        && board.knights & board.bishops == 0
+        && board.knights & board.rooks == 0
+        && board.knights & board.queens == 0
+        && board.knights & board.kings == 0
+        && board.bishops & board.rooks == 0
+        && board.bishops & board.queens == 0
+        && board.bishops & board.kings == 0
+        && board.rooks & board.queens == 0
+        && board.rooks & board.kings == 0
+        && board.queens & board.kings == 0
+        && board.white_pieces & board.black_pieces == 0
+        && all_piece_types == all_colors
+}
+
+pub fn print_all_board_info(board: &ChessBoard) {
+    println!("Pawns:");
+    print_board_binary(&board.pawns);
+    println!("Knights:");
+    print_board_binary(&board.knights);
+    println!("Bishops:");
+    print_board_binary(&board.bishops);
+    println!("Rooks:");
+    print_board_binary(&board.rooks);
+    println!("Queens:");
+    print_board_binary(&board.queens);
+    println!("Kings:");
+    print_board_binary(&board.kings);
+    println!("White pieces:");
+    print_board_binary(&board.white_pieces);
+    println!("Black pieces:");
+    print_board_binary(&board.black_pieces);
+}
+
 // Unit Tests
 #[cfg(test)]
 mod tests {

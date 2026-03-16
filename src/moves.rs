@@ -732,7 +732,7 @@ pub fn test_plmove_legality(board: &mut board::ChessBoard, move_i: u16) -> bool 
         match move_decoded[1] {
             // match the to_sq to determine which in-between squares to check (includes target sq)
             2 => in_between_sqs = 0xC,
-            6 => in_between_sqs = 0x06,
+            6 => in_between_sqs = 0x60,
             58 => in_between_sqs = 0x0C00000000000000,
             62 => in_between_sqs = 0x6000000000000000,
             _ => return false,
