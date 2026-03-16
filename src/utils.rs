@@ -307,6 +307,27 @@ pub fn encode_from_uci(uci_move: &str) -> Result<u16, String> {
     return Ok(movei);
 }
 
+pub fn decode_to_uci(move_i: u16) -> Result<String, String> {
+    let flag = (move_i & 0xF) as usize;
+    let to_sq = ((move_i >> 4) & 0x3F) as usize;
+    let from_sq = ((move_i >> 10) & 0x3F) as usize;
+
+    let from_file = FILES[from_sq % 8];
+    let from_rank = (from_sq / 8) + 1;
+    let to_file = FILES[to_sq % 8];
+    let to_rank = (to_sq / 8) + 1;
+
+    let promo = match flag {
+        4 | 8 => "n",
+        5 | 9 => "b",
+        6 | 10 => "r",
+        7 | 11 => "q",
+        _ => "",
+    };
+
+    Ok(format!("{from_file}{from_rank}{to_file}{to_rank}{promo}"))
+}
+
 pub fn render_board(board: &ChessBoard) {
     let mut output_array = [' '; 64]; // a1 to h8
     for i in 0..=63 {
@@ -699,5 +720,23 @@ mod tests {
 
         let uci_move = "h2h1q";
         assert_eq!(encode_from_uci(uci_move).unwrap(), encode_move(15, 7, 7));
+    }
+
+    #[test]
+    fn test_decode_to_uci() {
+        let uci_move = "d2d4";
+        let move_i = encode_from_uci(&uci_move).unwrap();
+        let uci_move2 = decode_to_uci(move_i).unwrap();
+        assert_eq!(uci_move, uci_move2);
+
+        let uci_move = "h7h8q";
+        let move_i = encode_from_uci(&uci_move).unwrap();
+        let uci_move2 = decode_to_uci(move_i).unwrap();
+        assert_eq!(uci_move, uci_move2);
+
+        let uci_move = "b2b1n";
+        let move_i = encode_from_uci(&uci_move).unwrap();
+        let uci_move2 = decode_to_uci(move_i).unwrap();
+        assert_eq!(uci_move, uci_move2);
     }
 }
