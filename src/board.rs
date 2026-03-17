@@ -455,9 +455,11 @@ impl ChessBoard {
                 self.pawns &= !(to_sq_bb >> 8);
                 if self.side_to_move {
                     self.black_pieces &= !(to_sq_bb >> 8);
+                    self.pawns &= !(to_sq_bb >> 8);
                     self.zobrist_hash ^= ZOBRIST_PIECES[(to_sqi - 8) as usize][6];
                 } else {
                     self.white_pieces &= !(to_sq_bb << 8);
+                    self.pawns &= !(to_sq_bb << 8);
                     self.zobrist_hash ^= ZOBRIST_PIECES[(to_sqi + 8) as usize][0];
                 }
             } else {
@@ -535,6 +537,14 @@ impl ChessBoard {
             }
         }
 
+        // COMMENT OUT WHEN DONE DEBUGGING
+        /*
+        if !utils::check_integrity(self) {
+            utils::print_all_board_info(self);
+            panic!("board integrity issue after move");
+        }
+        */
+
         return Ok(undo_info);
     }
 
@@ -570,7 +580,7 @@ impl ChessBoard {
                 4 | 8 => self.knights &= !to_sq_bb,
                 5 | 9 => self.bishops &= !to_sq_bb,
                 6 | 10 => self.rooks &= !to_sq_bb,
-                7 | 1 => self.queens &= !to_sq_bb,
+                7 | 11 => self.queens &= !to_sq_bb,
                 _ => (),
             };
             self.pawns |= from_sq_bb;
@@ -696,6 +706,15 @@ impl ChessBoard {
         }
 
         self.zobrist_hash = undo_info.zobrist_hash;
+
+        // COMMENT OUT WHEN DONE DEBUGGING
+        /*
+        if !utils::check_integrity(self) {
+            utils::print_all_board_info(self);
+            panic!("board integrity issue after unmake move");
+        }
+        */
+
         return Ok(());
     }
 
