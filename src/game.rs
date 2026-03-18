@@ -1,9 +1,9 @@
-use crate::board::ChessBoard;
-use crate::moves;
+use crate::board::{ChessBoard, UndoInfo};
+use crate::moves::{self, get_legal_moves};
 use crate::{board, rules, utils};
 use rustc_hash::FxHashMap;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct ChessGame {
     pub board: board::ChessBoard,
     pub time_control: (u32, u32), // starting_ms, increment_ms, ** CLOCK CONTROL NOT IMPLEMENTED YET **
@@ -53,6 +53,28 @@ impl ChessGame {
         } else {
             return Err("Invalid move".to_string());
         }
+    }
+
+    pub fn unmake_move(&mut self) -> Result<(), String> {
+        // simply pop off the moves list, which has the undo info,
+        let undo_info = self.moves.pop().unwrap();
+        // decrement position count for current hash,
+        if self.positions_count[&self.board.zobrist_hash] == 1 {
+            self.positions_count.remove(&self.board.zobrist_hash);
+        } else {
+            *self
+                .positions_count
+                .get_mut(&self.board.zobrist_hash)
+                .unwrap() -= 1;
+        }
+        // call the board level move undo,
+        self.board.unmake_move(undo_info.0, &undo_info.1)?;
+        // regen legal moves.
+        self.legal_moves = get_legal_moves(&mut self.board);
+        // set result to in progress.
+        self.result = GameResult::InProgress;
+
+        return Ok(());
     }
 
     pub fn make_move_from_uci(&mut self, uci_move: &str) -> Result<GameResult, String> {
@@ -270,5 +292,14 @@ mod tests {
             move_result.unwrap(),
             GameResult::BlackWins(WinReason::Checkmate)
         );
+    }
+
+    fn test_unmake_move() {
+        let mut game = ChessGame::initialize((1, 1), None);
+        let game_unchanged = game.clone();
+        let movei = encode_move(12, 28, 0);
+        _ = game.make_move(movei);
+        _ = game.unmake_move();
+        assert_eq!(game, game_unchanged);
     }
 }

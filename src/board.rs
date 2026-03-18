@@ -24,7 +24,7 @@ pub struct ChessBoard {
     pub zobrist_hash: u64,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct UndoInfo {
     halfmove_clock: u8,
     castling_rights: u8,
