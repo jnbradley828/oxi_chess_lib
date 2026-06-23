@@ -1,5 +1,7 @@
 // this file defines many helpful utilities used in other modules.
 
+use std::u64;
+
 use crate::board::ChessBoard;
 
 pub const fn on_a_file(piece_location: u64) -> bool {
@@ -82,6 +84,11 @@ pub const fn on_h_file(piece_location: u64) -> bool {
     }
 }
 
+// 1 -> a file, 8 -> h file
+pub const fn file_value(piece_location: u64) -> u16 {
+    return (piece_location.trailing_zeros() % 8) as u16 + 1;
+}
+
 pub const fn on_rank_1(piece_location: u64) -> bool {
     if piece_location < 0x0000000000000100 {
         return true;
@@ -143,6 +150,19 @@ pub const fn on_rank_8(piece_location: u64) -> bool {
         return true;
     } else {
         return false;
+    }
+}
+
+pub const fn rank_value(piece_location: u64) -> u16 {
+    match piece_location {
+        0..0x0000000000000100 => 1,
+        0x0000000000000081..0x0000000000010000 => 2,
+        0x0000000000008001..0x0000000001000000 => 3,
+        0x0000000000800001..0x0000000100000000 => 4,
+        0x0000000080000001..0x0000010000000000 => 5,
+        0x0000008000000001..0x0001000000000000 => 6,
+        0x0000800000000001..0x0100000000000000 => 7,
+        0x0080000000000000.. => 8,
     }
 }
 
@@ -781,5 +801,23 @@ mod tests {
         let move_i = encode_from_uci(&uci_move).unwrap();
         let uci_move2 = decode_to_uci(move_i).unwrap();
         assert_eq!(uci_move, uci_move2);
+    }
+
+    #[test]
+    fn test_rank_value() {
+        for i in 0..64u32 {
+            let square: u64 = 1 << i;
+            let expected = (i / 8 + 1) as u16;
+            assert_eq!(rank_value(square), expected, "failed for square index {i}");
+        }
+    }
+
+    #[test]
+    fn test_file_value() {
+        for i in 0..64u32 {
+            let square: u64 = 1 << i;
+            let expected = (i % 8 + 1) as u16;
+            assert_eq!(file_value(square), expected, "failed for square index {i}");
+        }
     }
 }
