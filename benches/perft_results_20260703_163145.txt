@@ -1,0 +1,12 @@
+depth 1: 20 nodes in 3.97µs
+  nodes per second = 5,037,783
+depth 2: 400 nodes in 113.714µs
+  nodes per second = 3,517,596
+depth 3: 8902 nodes in 1.296363ms
+  nodes per second = 6,866,903
+depth 4: 197281 nodes in 15.660815ms
+  nodes per second = 12,597,109
+depth 5: 4865609 nodes in 330.538559ms
+  nodes per second = 14,720,246
+depth 6: 119060324 nodes in 8.519791059s
+  nodes per second = 13,974,559

@@ -11,8 +11,7 @@ pub fn is_check(board: &board::ChessBoard, side_in_check: bool) -> bool {
         king_sq = board.kings & board.black_pieces;
     }
 
-    let attacked_sqs = moves::board_attacks(&board, !side_in_check);
-    if king_sq & attacked_sqs != 0 {
+    if moves::square_attacked(!side_in_check, king_sq, board, None) {
         return true;
     } else {
         return false;
