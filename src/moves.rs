@@ -503,7 +503,7 @@ pub fn square_attacked(
         }
         if square < *ray {
             // start with trailing zeroes
-            let mut ray = ray & !vacated;
+            let mut ray = (ray & (board.white_pieces | board.black_pieces)) & !vacated;
             while ray != 0 {
                 let this_sq: u64 = 1 << ray.trailing_zeros();
                 if this_sq & potential_attackers != 0 {
@@ -516,7 +516,7 @@ pub fn square_attacked(
             }
         } else {
             // start with leading zeroes
-            let mut ray = ray & !vacated;
+            let mut ray = (ray & (board.white_pieces | board.black_pieces)) & !vacated;
             while ray != 0 {
                 let this_sq: u64 = 0x8000000000000000 >> ray.leading_zeros();
                 if this_sq & potential_attackers != 0 {
