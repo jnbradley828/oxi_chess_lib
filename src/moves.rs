@@ -433,9 +433,11 @@ pub fn square_attacked(
     square: u64,
     board: &board::ChessBoard,
     empty_square: Option<u64>,
+    occupied_square: Option<u64>,
 ) -> bool {
     let sq_i = square.trailing_zeros() as usize;
     let vacated = empty_square.unwrap_or(0);
+    let occupied = occupied_square.unwrap_or(0);
     // check opposing king
     let opposing_king: u64;
     if color {
@@ -450,9 +452,9 @@ pub fn square_attacked(
     // check knights
     let opposing_knights: u64;
     if color {
-        opposing_knights = (board.knights & board.white_pieces) & !vacated;
+        opposing_knights = (board.knights & board.white_pieces) & !vacated & !occupied;
     } else {
-        opposing_knights = (board.knights & board.black_pieces) & !vacated;
+        opposing_knights = (board.knights & board.black_pieces) & !vacated & !occupied;
     }
     if KNIGHT_ATTACKS[sq_i] & opposing_knights != 0 {
         return true;
@@ -462,10 +464,10 @@ pub fn square_attacked(
     let opposing_pawns: u64;
     let potential_sqs: u64;
     if color {
-        opposing_pawns = (board.pawns & board.white_pieces) & !vacated;
+        opposing_pawns = (board.pawns & board.white_pieces) & !vacated & !occupied;
         potential_sqs = BLACK_PAWN_ATTACKS[sq_i];
     } else {
-        opposing_pawns = (board.pawns & board.black_pieces) & !vacated;
+        opposing_pawns = (board.pawns & board.black_pieces) & !vacated & !occupied;
         potential_sqs = WHITE_PAWN_ATTACKS[sq_i];
     }
     if opposing_pawns & potential_sqs != 0 {
@@ -494,37 +496,39 @@ pub fn square_attacked(
         let potential_attackers: u64;
         let potential_blockers: u64;
         if i % 2 == 0 {
-            potential_attackers = opposing_orthogonals;
-            potential_blockers = non_oo;
+            potential_attackers = opposing_orthogonals & !occupied;
+            potential_blockers = non_oo | occupied;
         }
         else {
-            potential_attackers = opposing_diagonals;
-            potential_blockers = non_od;
+            potential_attackers = opposing_diagonals & ! occupied;
+            potential_blockers = non_od | occupied;
         }
-        if square < *ray {
-            // start with trailing zeroes
-            let mut ray = (ray & (board.white_pieces | board.black_pieces)) & !vacated;
-            while ray != 0 {
-                let this_sq: u64 = 1 << ray.trailing_zeros();
-                if this_sq & potential_attackers != 0 {
-                    return true;
-                } else if this_sq & potential_blockers != 0 {
-                    ray = 0;
-                } else {
-                    ray &= !this_sq;
+        if potential_attackers != 0 {
+            if square < *ray {
+                // start with trailing zeroes
+                let mut ray = (ray & ((board.white_pieces | board.black_pieces) | occupied)) & !vacated;
+                while ray != 0 {
+                    let this_sq: u64 = 1 << ray.trailing_zeros();
+                    if this_sq & potential_attackers != 0 {
+                        return true;
+                    } else if this_sq & potential_blockers != 0 {
+                        ray = 0;
+                    } else {
+                        ray &= !this_sq;
+                    }
                 }
-            }
-        } else {
-            // start with leading zeroes
-            let mut ray = (ray & (board.white_pieces | board.black_pieces)) & !vacated;
-            while ray != 0 {
-                let this_sq: u64 = 0x8000000000000000 >> ray.leading_zeros();
-                if this_sq & potential_attackers != 0 {
-                    return true;
-                } else if this_sq & potential_blockers != 0 {
-                    ray = 0;
-                } else {
-                    ray &= !this_sq;
+            } else {
+                // start with leading zeroes
+                let mut ray = (ray & ((board.white_pieces | board.black_pieces) | occupied)) & !vacated;
+                while ray != 0 {
+                    let this_sq: u64 = 0x8000000000000000 >> ray.leading_zeros();
+                    if this_sq & potential_attackers != 0 {
+                        return true;
+                    } else if this_sq & potential_blockers != 0 {
+                        ray = 0;
+                    } else {
+                        ray &= !this_sq;
+                    }
                 }
             }
         }
@@ -828,36 +832,59 @@ pub fn test_plmove_legality(board: &mut board::ChessBoard, move_i: u16) -> bool 
 
     // castling legality
     let move_decoded = utils::decode_move(move_i);
-    if move_decoded[2] == 2 {
-        // if flag == castle
-        if is_check(board, to_move) {
-            // can't castle out of check.
-            return false;
-        }
-
-        let hostile_attacks = board_attacks(board, !board.side_to_move);
-        let in_between_sqs: u64;
+    let [from_sqi, to_sqi, flag]: [u8;3] = move_decoded;
+    let from_sq = 1 << from_sqi;
+    let to_sq = 1 << to_sqi;
+    if flag == 2 {
+        let mut sqs_to_check: u64;
         match move_decoded[1] {
             // match the to_sq to determine which in-between squares to check (includes target sq)
-            2 => in_between_sqs = 0xC,
-            6 => in_between_sqs = 0x60,
-            58 => in_between_sqs = 0x0C00000000000000,
-            62 => in_between_sqs = 0x6000000000000000,
+            2 => sqs_to_check = 0x1C,
+            6 => sqs_to_check = 0x70,
+            58 => sqs_to_check = 0x1C00000000000000,
+            62 => sqs_to_check = 0x7000000000000000,
             _ => return false,
         }
-        if hostile_attacks & in_between_sqs != 0 {
-            return false;
+        while sqs_to_check != 0 {
+            let this_sq = 1 << sqs_to_check.trailing_zeros();
+            if square_attacked(!to_move, this_sq, board, None, None) {
+                return false;
+            } else {
+                sqs_to_check &= !this_sq;
+            }
         }
-    }
-
-    // regular legality
-    let undo_info = board.make_move(move_i).unwrap();
-    if is_check(board, to_move) {
-        let _ = board.unmake_move(move_i, &undo_info);
-        return false;
-    } else {
-        let _ = board.unmake_move(move_i, &undo_info);
         return true;
+    } else {
+        // regular legality
+        // if king moves, check target square
+        if board.kings & (from_sq) != 0 {
+            if square_attacked(!to_move, (to_sq), board, Some(from_sq), None) {
+                return false;
+            } else {
+                return true;
+            }
+        } else {
+            // if other piece moves, check king square with vacated piece.
+            let king_sq: u64;
+            if to_move {
+                king_sq = board.kings & board.white_pieces;
+            } else {
+                king_sq = board.kings & board.black_pieces;
+            }
+            let mut vacated: u64 = from_sq;
+            if move_decoded[2] == 3 {
+                if to_move {
+                    vacated |= to_sq >> 8;
+                } else {
+                    vacated |= to_sq << 8;
+                }
+            }
+            if square_attacked(!to_move, king_sq, board, Some(vacated), Some(to_sq)) {
+                return false;
+            } else {
+                return true;
+            }
+        }
     }
 }
 
@@ -1114,57 +1141,57 @@ mod tests {
         // start board - king not attacked
         let start_board = ChessBoard::initialize();
         let sq = utils::square_to_bb("e1").unwrap();
-        assert_eq!(square_attacked(false, sq, &start_board, None), false);
+        assert_eq!(square_attacked(false, sq, &start_board, None, None), false);
 
         // start board - king not attacked
         let start_board = ChessBoard::initialize();
         let sq = utils::square_to_bb("e8").unwrap();
-        assert_eq!(square_attacked(true, sq, &start_board, None), false);
+        assert_eq!(square_attacked(true, sq, &start_board, None, None), false);
 
         // white king attacked by knight.
         let board = ChessBoard::initialize_from_fen("k7/8/4n3/8/3K4/8/8/8 w - - 0 1").unwrap();
         let sq = utils::square_to_bb("d4").unwrap();
-        assert_eq!(square_attacked(false, sq, &board, None), true);
+        assert_eq!(square_attacked(false, sq, &board, None, None), true);
 
         // white king attacked by pawn.
         let board = ChessBoard::initialize_from_fen("k7/8/8/4p3/3K4/8/8/8 w - - 0 1").unwrap();
         let sq = utils::square_to_bb("d4").unwrap();
-        assert_eq!(square_attacked(false, sq, &board, None), true);
+        assert_eq!(square_attacked(false, sq, &board, None, None), true);
 
         // black king attacked by knight.
         let board = ChessBoard::initialize_from_fen("K7/8/8/8/1N6/8/2k5/8 b - - 0 1").unwrap();
         let sq = utils::square_to_bb("c2").unwrap();
-        assert_eq!(square_attacked(true, sq, &board, None), true);
+        assert_eq!(square_attacked(true, sq, &board, None, None), true);
 
         // black king attacked by pawn.
         let board = ChessBoard::initialize_from_fen("K7/7k/6P1/8/8/8/8/8 b - - 0 1").unwrap();
         let sq = utils::square_to_bb("h7").unwrap();
-        assert_eq!(square_attacked(true, sq, &board, None), true);
+        assert_eq!(square_attacked(true, sq, &board, None, None), true);
 
         // white king not attacked
         let board =
             ChessBoard::initialize_from_fen("8/2n1n3/2n5/nnKnk3/1pnp4/n1n1n3/8/8 w - - 0 1")
                 .unwrap();
         let sq = utils::square_to_bb("c5").unwrap();
-        assert_eq!(square_attacked(false, sq, &board, None), false);
+        assert_eq!(square_attacked(false, sq, &board, None, None), false);
 
         // white king attacks d2 and not e8.
         let board =
             ChessBoard::initialize_from_fen("4k3/8/8/8/8/8/8/4K3 w - - 0 1").unwrap();
         let sq = utils::square_to_bb("d2").unwrap();
-        assert_eq!(square_attacked(true, sq, &board, None), true);
-        assert_eq!(square_attacked(false, sq, &board, None), false);
+        assert_eq!(square_attacked(true, sq, &board, None, None), true);
+        assert_eq!(square_attacked(false, sq, &board, None, None), false);
         let sq = utils::square_to_bb("d8").unwrap();
-        assert_eq!(square_attacked(true, sq, &board, None), false);
-        assert_eq!(square_attacked(false, sq, &board, None), true);
+        assert_eq!(square_attacked(true, sq, &board, None, None), false);
+        assert_eq!(square_attacked(false, sq, &board, None, None), true);
 
         // white king surround by pawns, cannot be attacked unless f5 is vacated.
         let board =
             ChessBoard::initialize_from_fen("4k3/1b2r2q/8/3PPP2/r2PKP1r/3PPP2/8/1q2r2b w - - 0 1").unwrap();
         let sq = utils::square_to_bb("e4").unwrap();
         let vacated = utils::square_to_bb("f5").unwrap();
-        assert_eq!(square_attacked(false, sq, &board, None), false);
-        assert_eq!(square_attacked(false, sq, &board, Some(vacated)), true);
+        assert_eq!(square_attacked(false, sq, &board, None, None), false);
+        assert_eq!(square_attacked(false, sq, &board, Some(vacated), None), true);
     }
 
     #[test]
