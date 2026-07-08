@@ -1,6 +1,7 @@
 use crate::board::{ChessBoard, UndoInfo};
 use crate::moves::{self, get_legal_moves};
 use crate::{board, rules, utils};
+use arrayvec::ArrayVec;
 use rustc_hash::FxHashMap;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -9,7 +10,7 @@ pub struct ChessGame {
     pub time_control: (u32, u32), // starting_ms, increment_ms, ** CLOCK CONTROL NOT IMPLEMENTED YET **
     pub moves: Vec<(u16, board::UndoInfo)>,
     pub positions_count: FxHashMap<u64, u8>,
-    pub legal_moves: Vec<u16>,
+    pub legal_moves: ArrayVec<u16, 64>,
     pub result: GameResult,
 }
 impl ChessGame {

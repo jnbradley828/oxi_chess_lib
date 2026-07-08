@@ -4,6 +4,7 @@ use crate::board;
 use crate::board::ChessBoard;
 use crate::rules::is_check;
 use crate::utils::{self, encode_move};
+use arrayvec::ArrayVec;
 
 pub const A_FILE: u64 = 0x0101010101010101;
 pub const H_FILE: u64 = 0x8080808080808080;
@@ -448,7 +449,7 @@ pub fn square_attacked(
     if KING_ATTACKS[sq_i] & opposing_king != 0 {
         return true;
     }
-    
+
     // check knights
     let opposing_knights: u64;
     if color {
@@ -498,15 +499,15 @@ pub fn square_attacked(
         if i % 2 == 0 {
             potential_attackers = opposing_orthogonals & !occupied;
             potential_blockers = non_oo | occupied;
-        }
-        else {
-            potential_attackers = opposing_diagonals & ! occupied;
+        } else {
+            potential_attackers = opposing_diagonals & !occupied;
             potential_blockers = non_od | occupied;
         }
         if potential_attackers != 0 {
             if square < *ray {
                 // start with trailing zeroes
-                let mut ray = (ray & ((board.white_pieces | board.black_pieces) | occupied)) & !vacated;
+                let mut ray =
+                    (ray & ((board.white_pieces | board.black_pieces) | occupied)) & !vacated;
                 while ray != 0 {
                     let this_sq: u64 = 1 << ray.trailing_zeros();
                     if this_sq & potential_attackers != 0 {
@@ -519,7 +520,8 @@ pub fn square_attacked(
                 }
             } else {
                 // start with leading zeroes
-                let mut ray = (ray & ((board.white_pieces | board.black_pieces) | occupied)) & !vacated;
+                let mut ray =
+                    (ray & ((board.white_pieces | board.black_pieces) | occupied)) & !vacated;
                 while ray != 0 {
                     let this_sq: u64 = 0x8000000000000000 >> ray.leading_zeros();
                     if this_sq & potential_attackers != 0 {
@@ -578,7 +580,7 @@ pub fn board_attacks(board: &board::ChessBoard, color: bool) -> u64 {
     attacks
 }
 
-pub fn get_pawn_plmoves(board: &board::ChessBoard) -> Vec<u16> {
+pub fn get_pawn_plmoves(board: &board::ChessBoard, plmoves: &mut ArrayVec<u16, 64>) -> () {
     let mut friendly_pawns: u64; // bitboard of pieces to check
     let to_move = board.side_to_move;
     if board.side_to_move {
@@ -586,8 +588,6 @@ pub fn get_pawn_plmoves(board: &board::ChessBoard) -> Vec<u16> {
     } else {
         friendly_pawns = board.black_pieces & board.pawns;
     }
-
-    let mut moves: Vec<u16> = Vec::new();
 
     // while there are still pawns to check, add moves for the next pawn
     while friendly_pawns != 0 {
@@ -607,35 +607,35 @@ pub fn get_pawn_plmoves(board: &board::ChessBoard) -> Vec<u16> {
                 let ep = board.en_passant;
                 if this_target_bb == board.en_passant {
                     // if en passant
-                    moves.push(utils::encode_move(this_piece_i, this_target_i, 3));
+                    plmoves.push(utils::encode_move(this_piece_i, this_target_i, 3));
                 } else if this_target_bb & board.black_pieces != 0 {
                     // if there is a capturable target
                     if utils::on_rank_7(this_piece_bb) {
                         // if promotion with capture
                         for flag in 8..=11 {
                             // one move for each promotion piece choice
-                            moves.push(utils::encode_move(this_piece_i, this_target_i, flag));
+                            plmoves.push(utils::encode_move(this_piece_i, this_target_i, flag));
                         }
                     } else {
                         // if normal capture
-                        moves.push(utils::encode_move(this_piece_i, this_target_i, 1));
+                        plmoves.push(utils::encode_move(this_piece_i, this_target_i, 1));
                     }
                 }
             } else {
                 // if black pawn
                 if this_target_bb == board.en_passant {
                     // if en passant
-                    moves.push(utils::encode_move(this_piece_i, this_target_i, 3));
+                    plmoves.push(utils::encode_move(this_piece_i, this_target_i, 3));
                 } else if this_target_bb & board.white_pieces != 0 {
                     if utils::on_rank_2(this_piece_bb) {
                         // if promotion with capture
                         for flag in 8..=11 {
                             // one move for each promotion piece choice
-                            moves.push(utils::encode_move(this_piece_i, this_target_i, flag));
+                            plmoves.push(utils::encode_move(this_piece_i, this_target_i, flag));
                         }
                     } else {
                         // if normal capture
-                        moves.push(utils::encode_move(this_piece_i, this_target_i, 1));
+                        plmoves.push(utils::encode_move(this_piece_i, this_target_i, 1));
                     }
                 }
             }
@@ -651,14 +651,14 @@ pub fn get_pawn_plmoves(board: &board::ChessBoard) -> Vec<u16> {
                     // promotion w/out capture
                     for flag in 4..=7 {
                         // one move for each promotion piece choice
-                        moves.push(utils::encode_move(this_piece_i, this_piece_i + 8, flag));
+                        plmoves.push(utils::encode_move(this_piece_i, this_piece_i + 8, flag));
                     }
                 } else {
-                    moves.push(utils::encode_move(this_piece_i, this_piece_i + 8, 0)); // forward 1 square
+                    plmoves.push(utils::encode_move(this_piece_i, this_piece_i + 8, 0)); // forward 1 square
                     if utils::on_rank_2(this_piece_bb) {
                         // if pawn is on starting square
                         if !board.is_occupied(this_piece_i + 16) {
-                            moves.push(utils::encode_move(this_piece_i, this_piece_i + 16, 0));
+                            plmoves.push(utils::encode_move(this_piece_i, this_piece_i + 16, 0));
                             // forward 2 squares
                         }
                     }
@@ -672,14 +672,14 @@ pub fn get_pawn_plmoves(board: &board::ChessBoard) -> Vec<u16> {
                     // promotion w/out capture
                     for flag in 4..=7 {
                         // one move for each promotion piece choice
-                        moves.push(utils::encode_move(this_piece_i, this_piece_i - 8, flag));
+                        plmoves.push(utils::encode_move(this_piece_i, this_piece_i - 8, flag));
                     }
                 } else {
-                    moves.push(utils::encode_move(this_piece_i, this_piece_i - 8, 0)); // forward 1 square
+                    plmoves.push(utils::encode_move(this_piece_i, this_piece_i - 8, 0)); // forward 1 square
                     if utils::on_rank_7(this_piece_bb) {
                         // if pawn is on starting square
                         if !board.is_occupied(this_piece_i - 16) {
-                            moves.push(utils::encode_move(this_piece_i, this_piece_i - 16, 0));
+                            plmoves.push(utils::encode_move(this_piece_i, this_piece_i - 16, 0));
                             // forward 2 squares
                         }
                     }
@@ -689,14 +689,10 @@ pub fn get_pawn_plmoves(board: &board::ChessBoard) -> Vec<u16> {
 
         friendly_pawns &= !this_piece_bb; // remove checked piece
     }
-
-    return moves;
 }
 
-pub fn get_nonpk_plmoves(board: &board::ChessBoard) -> Vec<u16> {
+pub fn get_nonpk_plmoves(board: &board::ChessBoard, plmoves: &mut ArrayVec<u16, 64>) {
     // generates pseudolegal moves for all non pawn/king pieces
-    let mut moves: Vec<u16> = Vec::new();
-
     let to_move = board.side_to_move;
     let color_mask: u64;
     if board.side_to_move {
@@ -733,10 +729,10 @@ pub fn get_nonpk_plmoves(board: &board::ChessBoard) -> Vec<u16> {
 
                 if board.is_occupied(this_target_i) {
                     // if capture
-                    moves.push(utils::encode_move(this_piece_i, this_target_i, 1));
+                    plmoves.push(utils::encode_move(this_piece_i, this_target_i, 1));
                 } else {
                     // if normal move
-                    moves.push(utils::encode_move(this_piece_i, this_target_i, 0));
+                    plmoves.push(utils::encode_move(this_piece_i, this_target_i, 0));
                 }
 
                 piece_attacks &= !this_target_bb;
@@ -745,12 +741,9 @@ pub fn get_nonpk_plmoves(board: &board::ChessBoard) -> Vec<u16> {
             pieces &= !this_piece_bb; // remove checked piece
         }
     }
-
-    return moves;
 }
 
-pub fn get_king_plmoves(board: &board::ChessBoard) -> Vec<u16> {
-    let mut moves: Vec<u16> = Vec::new();
+pub fn get_king_plmoves(board: &board::ChessBoard, plmoves: &mut ArrayVec<u16, 64>) -> () {
     let king_bb: u64;
     if board.side_to_move {
         king_bb = board.kings & board.white_pieces;
@@ -768,10 +761,10 @@ pub fn get_king_plmoves(board: &board::ChessBoard) -> Vec<u16> {
 
         if board.is_occupied(this_target_i) {
             // if capture
-            moves.push(utils::encode_move(king_i, this_target_i, 1));
+            plmoves.push(utils::encode_move(king_i, this_target_i, 1));
         } else {
             // if normal move
-            moves.push(utils::encode_move(king_i, this_target_i, 0));
+            plmoves.push(utils::encode_move(king_i, this_target_i, 0));
         }
 
         king_attacks &= !this_target_bb;
@@ -782,46 +775,36 @@ pub fn get_king_plmoves(board: &board::ChessBoard) -> Vec<u16> {
         if board.castling_rights & 0b1000 != 0 {
             // white kingside castle
             if !board.is_occupied(5) && !board.is_occupied(6) {
-                moves.push(utils::encode_move(4, 6, 2));
+                plmoves.push(utils::encode_move(4, 6, 2));
             }
         }
         if board.castling_rights & 0b0100 != 0 {
             // white queenside castle
-            if !board.is_occupied(1)
-                && !board.is_occupied(2)
-                && !board.is_occupied(3)
-            {
-                moves.push(utils::encode_move(4, 2, 2));
+            if !board.is_occupied(1) && !board.is_occupied(2) && !board.is_occupied(3) {
+                plmoves.push(utils::encode_move(4, 2, 2));
             }
         }
     } else {
         if board.castling_rights & 0b0010 != 0 {
             // black kingside castle
             if !board.is_occupied(61) && !board.is_occupied(62) {
-                moves.push(utils::encode_move(60, 62, 2));
+                plmoves.push(utils::encode_move(60, 62, 2));
             }
         }
         if board.castling_rights & 0b0001 != 0 {
             // black queenside castle
-            if !board.is_occupied(57)
-                && !board.is_occupied(58)
-                && !board.is_occupied(59)
-            {
-                moves.push(utils::encode_move(60, 58, 2));
+            if !board.is_occupied(57) && !board.is_occupied(58) && !board.is_occupied(59) {
+                plmoves.push(utils::encode_move(60, 58, 2));
             }
         }
     }
-
-    return moves;
 }
 
-pub fn get_pseudolegal_moves(board: &board::ChessBoard) -> Vec<u16> {
-    let pl_moves: Vec<u16> = [
-        get_pawn_plmoves(board),
-        get_nonpk_plmoves(board),
-        get_king_plmoves(board),
-    ]
-    .concat();
+pub fn get_pseudolegal_moves(board: &board::ChessBoard) -> ArrayVec<u16, 64> {
+    let mut pl_moves = ArrayVec::<u16, 64>::new();
+    get_pawn_plmoves(board, &mut pl_moves);
+    get_nonpk_plmoves(board, &mut pl_moves);
+    get_king_plmoves(board, &mut pl_moves);
     return pl_moves;
 }
 
@@ -832,7 +815,7 @@ pub fn test_plmove_legality(board: &mut board::ChessBoard, move_i: u16) -> bool 
 
     // castling legality
     let move_decoded = utils::decode_move(move_i);
-    let [from_sqi, to_sqi, flag]: [u8;3] = move_decoded;
+    let [from_sqi, to_sqi, flag]: [u8; 3] = move_decoded;
     let from_sq = 1 << from_sqi;
     let to_sq = 1 << to_sqi;
     if flag == 2 {
@@ -888,9 +871,9 @@ pub fn test_plmove_legality(board: &mut board::ChessBoard, move_i: u16) -> bool 
     }
 }
 
-pub fn get_legal_moves(board: &mut board::ChessBoard) -> Vec<u16> {
+pub fn get_legal_moves(board: &mut board::ChessBoard) -> ArrayVec<u16, 64> {
     let mut legal_moves = get_pseudolegal_moves(board);
-    legal_moves.retain(|&m| test_plmove_legality(board, m));
+    legal_moves.retain(|m| test_plmove_legality(board, *m));
     return legal_moves;
 }
 
@@ -1176,8 +1159,7 @@ mod tests {
         assert_eq!(square_attacked(false, sq, &board, None, None), false);
 
         // white king attacks d2 and not e8.
-        let board =
-            ChessBoard::initialize_from_fen("4k3/8/8/8/8/8/8/4K3 w - - 0 1").unwrap();
+        let board = ChessBoard::initialize_from_fen("4k3/8/8/8/8/8/8/4K3 w - - 0 1").unwrap();
         let sq = utils::square_to_bb("d2").unwrap();
         assert_eq!(square_attacked(true, sq, &board, None, None), true);
         assert_eq!(square_attacked(false, sq, &board, None, None), false);
@@ -1187,11 +1169,15 @@ mod tests {
 
         // white king surround by pawns, cannot be attacked unless f5 is vacated.
         let board =
-            ChessBoard::initialize_from_fen("4k3/1b2r2q/8/3PPP2/r2PKP1r/3PPP2/8/1q2r2b w - - 0 1").unwrap();
+            ChessBoard::initialize_from_fen("4k3/1b2r2q/8/3PPP2/r2PKP1r/3PPP2/8/1q2r2b w - - 0 1")
+                .unwrap();
         let sq = utils::square_to_bb("e4").unwrap();
         let vacated = utils::square_to_bb("f5").unwrap();
         assert_eq!(square_attacked(false, sq, &board, None, None), false);
-        assert_eq!(square_attacked(false, sq, &board, Some(vacated), None), true);
+        assert_eq!(
+            square_attacked(false, sq, &board, Some(vacated), None),
+            true
+        );
     }
 
     #[test]
@@ -1300,7 +1286,7 @@ mod tests {
     #[test]
     fn test_get_pawn_plmoves() {
         let board1 = ChessBoard::initialize(); // white in starting position
-        let mut correct_pawn_plmoves: Vec<u16> = Vec::new();
+        let mut correct_pawn_plmoves: ArrayVec<u16, 64> = ArrayVec::new();
 
         for from_sqi in 8..=15 {
             correct_pawn_plmoves.push(utils::encode_move(from_sqi, from_sqi + 8, 0));
@@ -1308,13 +1294,14 @@ mod tests {
         }
         correct_pawn_plmoves.sort();
 
-        let mut pawn_pl_moves = get_pawn_plmoves(&board1);
+        let mut pawn_pl_moves: ArrayVec<u16, 64> = ArrayVec::new();
+        get_pawn_plmoves(&board1, &mut pawn_pl_moves);
         pawn_pl_moves.sort();
 
         assert_eq!(pawn_pl_moves, correct_pawn_plmoves);
 
         let board2 = ChessBoard::initialize_from_fen("k7/8/8/8/8/8/6p1/K6N b - - 0 1").unwrap(); // black promotions test
-        let mut correct_pawn_plmoves: Vec<u16> = Vec::new();
+        let mut correct_pawn_plmoves: ArrayVec<u16, 64> = ArrayVec::new();
 
         for flag in 8..=11 {
             correct_pawn_plmoves.push(utils::encode_move(14, 7, flag));
@@ -1324,17 +1311,19 @@ mod tests {
         }
         correct_pawn_plmoves.sort();
 
-        let mut pawn_pl_moves = get_pawn_plmoves(&board2);
+        let mut pawn_pl_moves: ArrayVec<u16, 64> = ArrayVec::new();
+        get_pawn_plmoves(&board2, &mut pawn_pl_moves);
         pawn_pl_moves.sort();
 
         assert_eq!(pawn_pl_moves, correct_pawn_plmoves);
 
         let board3 = ChessBoard::initialize_from_fen("k7/8/8/4pP2/8/8/8/K7 w - e6 0 2").unwrap(); // white en passant
-        let mut correct_pawn_plmoves: Vec<u16> =
-            vec![utils::encode_move(37, 45, 0), utils::encode_move(37, 44, 3)];
+        let mut correct_pawn_plmoves: ArrayVec<u16, 64> =
+            ArrayVec::from_iter([utils::encode_move(37, 45, 0), utils::encode_move(37, 44, 3)]);
         correct_pawn_plmoves.sort();
 
-        let mut pawn_pl_moves = get_pawn_plmoves(&board3);
+        let mut pawn_pl_moves: ArrayVec<u16, 64> = ArrayVec::new();
+        get_pawn_plmoves(&board3, &mut pawn_pl_moves);
         pawn_pl_moves.sort();
 
         assert_eq!(pawn_pl_moves, correct_pawn_plmoves);
@@ -1343,22 +1332,23 @@ mod tests {
     #[test]
     fn test_get_nonpk_plmoves() {
         let board1 = ChessBoard::initialize(); // white in starting position
-        let mut correct_nonpk_plmoves: Vec<u16> = vec![
+        let mut correct_nonpk_plmoves: ArrayVec<u16, 64> = ArrayVec::from_iter([
             utils::encode_move(1, 16, 0),
             utils::encode_move(1, 18, 0),
             utils::encode_move(6, 23, 0),
             utils::encode_move(6, 21, 0),
-        ];
+        ]);
         correct_nonpk_plmoves.sort();
 
-        let mut nonpk_pl_moves = get_nonpk_plmoves(&board1);
+        let mut nonpk_pl_moves: ArrayVec<u16, 64> = ArrayVec::new();
+        get_nonpk_plmoves(&board1, &mut nonpk_pl_moves);
         nonpk_pl_moves.sort();
 
         assert_eq!(nonpk_pl_moves, correct_nonpk_plmoves);
 
         let board2 =
             ChessBoard::initialize_from_fen("1q2k1r1/Ppp4b/8/5Pp1/4p3/8/8/K7 b - - 0 1").unwrap(); // black in random position
-        let mut correct_nonpk_plmoves: Vec<u16> = vec![
+        let mut correct_nonpk_plmoves: ArrayVec<u16, 64> = ArrayVec::from_iter([
             utils::encode_move(57, 56, 0), // 4 queen moves
             utils::encode_move(57, 58, 0),
             utils::encode_move(57, 59, 0),
@@ -1369,10 +1359,11 @@ mod tests {
             utils::encode_move(62, 46, 0),
             utils::encode_move(55, 46, 0), // 2 bishop moves
             utils::encode_move(55, 37, 1),
-        ];
+        ]);
         correct_nonpk_plmoves.sort();
 
-        let mut nonpk_pl_moves = get_nonpk_plmoves(&board2);
+        let mut nonpk_pl_moves: ArrayVec<u16, 64> = ArrayVec::new();
+        get_nonpk_plmoves(&board2, &mut nonpk_pl_moves);
         nonpk_pl_moves.sort();
 
         assert_eq!(nonpk_pl_moves, correct_nonpk_plmoves);
@@ -1384,29 +1375,31 @@ mod tests {
             "r3kbnr/pppP1ppp/4p3/8/8/4P3/PPPp1PPP/RNBQK2R w KQkq - 0 1",
         )
         .unwrap();
-        let mut correct_king_plmoves: Vec<u16> = vec![
+        let mut correct_king_plmoves: ArrayVec<u16, 64> = ArrayVec::from_iter([
             utils::encode_move(4, 12, 0),
             utils::encode_move(4, 5, 0),
             utils::encode_move(4, 11, 1),
             utils::encode_move(4, 6, 2),
-        ];
+        ]);
         correct_king_plmoves.sort();
 
-        let mut king_pl_moves = get_king_plmoves(&board1);
+        let mut king_pl_moves: ArrayVec<u16, 64> = ArrayVec::new();
+        get_king_plmoves(&board1, &mut king_pl_moves);
         king_pl_moves.sort();
 
         assert_eq!(king_pl_moves, correct_king_plmoves);
 
         board1.make_move(utils::encode_move(8, 16, 0));
-        let mut correct_king_plmoves: Vec<u16> = vec![
+        let mut correct_king_plmoves: ArrayVec<u16, 64> = ArrayVec::from_iter([
             utils::encode_move(60, 59, 0),
             utils::encode_move(60, 52, 0),
             utils::encode_move(60, 51, 1),
             utils::encode_move(60, 58, 2),
-        ];
+        ]);
         correct_king_plmoves.sort();
 
-        let mut king_pl_moves = get_king_plmoves(&board1);
+        let mut king_pl_moves: ArrayVec<u16, 64> = ArrayVec::new();
+        get_king_plmoves(&board1, &mut king_pl_moves);
         king_pl_moves.sort();
 
         assert_eq!(king_pl_moves, correct_king_plmoves);
@@ -1461,7 +1454,7 @@ mod tests {
     fn test_get_legal_moves() {
         let mut board = ChessBoard::initialize();
 
-        let mut correct_legal_moves: Vec<u16> = Vec::new();
+        let mut correct_legal_moves: ArrayVec<u16, 64> = ArrayVec::new();
         for from_sqi in 8..=15 {
             correct_legal_moves.push(utils::encode_move(from_sqi, from_sqi + 8, 0));
             correct_legal_moves.push(utils::encode_move(from_sqi, from_sqi + 16, 0));
