@@ -178,6 +178,11 @@ impl ChessBoard {
         }
     }
 
+    #[inline(always)]
+    pub fn is_occupied(&self, sq_i: u8) -> bool {
+        (1 << sq_i) & (self.white_pieces | self.black_pieces) != 0
+    }
+
     // let (pawn, knight, bishop, rook, queen, king) = (0, 1, 2, 3, 4, 5)
     #[rustfmt::skip]
     pub fn piece_type_at(&self, sq_i: u8) -> Option<u8> {
@@ -555,13 +560,12 @@ impl ChessBoard {
         let to_sqi = ((move_int >> 4) & 0b111111) as u8;
         let flag = (move_int & 0b1111) as u8;
 
-        if self.piece_type_at(to_sqi).is_none() {
+        if !self.is_occupied(to_sqi) {
             return Err("No piece at target square.".to_string());
         };
 
         // check that there is no piece at the from square
-        let from_sq_bb: u64 = 1 << from_sqi;
-        if (self.black_pieces | self.white_pieces) & from_sq_bb != 0 {
+        if self.is_occupied(from_sqi) {
             return Err("Piece present at from square.".to_string());
         }
 
@@ -574,6 +578,7 @@ impl ChessBoard {
 
         // if promotion flag: remove to_sq piece and place pawn on from_sq
         let to_sq_bb: u64 = 1 << to_sqi;
+        let from_sq_bb: u64 = 1 << from_sqi;
         let to_sq_type = self.piece_type_at(to_sqi);
         if (4..=11).contains(&(flag as i32)) {
             match flag {

@@ -646,7 +646,7 @@ pub fn get_pawn_plmoves(board: &board::ChessBoard) -> Vec<u16> {
         if to_move {
             // if white pawn
             // forward moves
-            if board.piece_type_at(this_piece_i + 8).is_none() {
+            if !board.is_occupied(this_piece_i + 8) {
                 if utils::on_rank_7(this_piece_bb) {
                     // promotion w/out capture
                     for flag in 4..=7 {
@@ -657,7 +657,7 @@ pub fn get_pawn_plmoves(board: &board::ChessBoard) -> Vec<u16> {
                     moves.push(utils::encode_move(this_piece_i, this_piece_i + 8, 0)); // forward 1 square
                     if utils::on_rank_2(this_piece_bb) {
                         // if pawn is on starting square
-                        if board.piece_type_at(this_piece_i + 16).is_none() {
+                        if !board.is_occupied(this_piece_i + 16) {
                             moves.push(utils::encode_move(this_piece_i, this_piece_i + 16, 0));
                             // forward 2 squares
                         }
@@ -667,7 +667,7 @@ pub fn get_pawn_plmoves(board: &board::ChessBoard) -> Vec<u16> {
         } else {
             // if black pawn
             // forward moves
-            if board.piece_type_at(this_piece_i - 8).is_none() {
+            if !board.is_occupied(this_piece_i - 8) {
                 if utils::on_rank_2(this_piece_bb) {
                     // promotion w/out capture
                     for flag in 4..=7 {
@@ -678,7 +678,7 @@ pub fn get_pawn_plmoves(board: &board::ChessBoard) -> Vec<u16> {
                     moves.push(utils::encode_move(this_piece_i, this_piece_i - 8, 0)); // forward 1 square
                     if utils::on_rank_7(this_piece_bb) {
                         // if pawn is on starting square
-                        if board.piece_type_at(this_piece_i - 16).is_none() {
+                        if !board.is_occupied(this_piece_i - 16) {
                             moves.push(utils::encode_move(this_piece_i, this_piece_i - 16, 0));
                             // forward 2 squares
                         }
@@ -731,7 +731,7 @@ pub fn get_nonpk_plmoves(board: &board::ChessBoard) -> Vec<u16> {
                 let this_target_i: u8 = piece_attacks.trailing_zeros() as u8;
                 let this_target_bb: u64 = 1 << piece_attacks.trailing_zeros();
 
-                if board.piece_type_at(this_target_i).is_some() {
+                if board.is_occupied(this_target_i) {
                     // if capture
                     moves.push(utils::encode_move(this_piece_i, this_target_i, 1));
                 } else {
@@ -766,7 +766,7 @@ pub fn get_king_plmoves(board: &board::ChessBoard) -> Vec<u16> {
         let this_target_i: u8 = king_attacks.trailing_zeros() as u8;
         let this_target_bb: u64 = 1 << king_attacks.trailing_zeros();
 
-        if board.piece_type_at(this_target_i).is_some() {
+        if board.is_occupied(this_target_i) {
             // if capture
             moves.push(utils::encode_move(king_i, this_target_i, 1));
         } else {
@@ -781,15 +781,15 @@ pub fn get_king_plmoves(board: &board::ChessBoard) -> Vec<u16> {
     if board.side_to_move {
         if board.castling_rights & 0b1000 != 0 {
             // white kingside castle
-            if board.piece_type_at(5).is_none() && board.piece_type_at(6).is_none() {
+            if !board.is_occupied(5) && !board.is_occupied(6) {
                 moves.push(utils::encode_move(4, 6, 2));
             }
         }
         if board.castling_rights & 0b0100 != 0 {
             // white queenside castle
-            if board.piece_type_at(1).is_none()
-                && board.piece_type_at(2).is_none()
-                && board.piece_type_at(3).is_none()
+            if !board.is_occupied(1)
+                && !board.is_occupied(2)
+                && !board.is_occupied(3)
             {
                 moves.push(utils::encode_move(4, 2, 2));
             }
@@ -797,15 +797,15 @@ pub fn get_king_plmoves(board: &board::ChessBoard) -> Vec<u16> {
     } else {
         if board.castling_rights & 0b0010 != 0 {
             // black kingside castle
-            if board.piece_type_at(61).is_none() && board.piece_type_at(62).is_none() {
+            if !board.is_occupied(61) && !board.is_occupied(62) {
                 moves.push(utils::encode_move(60, 62, 2));
             }
         }
         if board.castling_rights & 0b0001 != 0 {
             // black queenside castle
-            if board.piece_type_at(57).is_none()
-                && board.piece_type_at(58).is_none()
-                && board.piece_type_at(59).is_none()
+            if !board.is_occupied(57)
+                && !board.is_occupied(58)
+                && !board.is_occupied(59)
             {
                 moves.push(utils::encode_move(60, 58, 2));
             }
