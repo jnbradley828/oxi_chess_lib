@@ -580,7 +580,7 @@ pub fn board_attacks(board: &board::ChessBoard, color: bool) -> u64 {
     attacks
 }
 
-pub fn get_pawn_plmoves(board: &board::ChessBoard, plmoves: &mut ArrayVec<u16, 64>) -> () {
+pub fn get_pawn_plmoves(board: &board::ChessBoard, plmoves: &mut ArrayVec<u16, 256>) -> () {
     let mut friendly_pawns: u64; // bitboard of pieces to check
     let to_move = board.side_to_move;
     if board.side_to_move {
@@ -691,7 +691,7 @@ pub fn get_pawn_plmoves(board: &board::ChessBoard, plmoves: &mut ArrayVec<u16, 6
     }
 }
 
-pub fn get_nonpk_plmoves(board: &board::ChessBoard, plmoves: &mut ArrayVec<u16, 64>) {
+pub fn get_nonpk_plmoves(board: &board::ChessBoard, plmoves: &mut ArrayVec<u16, 256>) {
     // generates pseudolegal moves for all non pawn/king pieces
     let to_move = board.side_to_move;
     let color_mask: u64;
@@ -743,7 +743,7 @@ pub fn get_nonpk_plmoves(board: &board::ChessBoard, plmoves: &mut ArrayVec<u16, 
     }
 }
 
-pub fn get_king_plmoves(board: &board::ChessBoard, plmoves: &mut ArrayVec<u16, 64>) -> () {
+pub fn get_king_plmoves(board: &board::ChessBoard, plmoves: &mut ArrayVec<u16, 256>) -> () {
     let king_bb: u64;
     if board.side_to_move {
         king_bb = board.kings & board.white_pieces;
@@ -800,8 +800,8 @@ pub fn get_king_plmoves(board: &board::ChessBoard, plmoves: &mut ArrayVec<u16, 6
     }
 }
 
-pub fn get_pseudolegal_moves(board: &board::ChessBoard) -> ArrayVec<u16, 64> {
-    let mut pl_moves = ArrayVec::<u16, 64>::new();
+pub fn get_pseudolegal_moves(board: &board::ChessBoard) -> ArrayVec<u16, 256> {
+    let mut pl_moves = ArrayVec::<u16, 256>::new();
     get_pawn_plmoves(board, &mut pl_moves);
     get_nonpk_plmoves(board, &mut pl_moves);
     get_king_plmoves(board, &mut pl_moves);
@@ -871,7 +871,7 @@ pub fn test_plmove_legality(board: &mut board::ChessBoard, move_i: u16) -> bool 
     }
 }
 
-pub fn get_legal_moves(board: &mut board::ChessBoard) -> ArrayVec<u16, 64> {
+pub fn get_legal_moves(board: &mut board::ChessBoard) -> ArrayVec<u16, 256> {
     let mut legal_moves = get_pseudolegal_moves(board);
     legal_moves.retain(|m| test_plmove_legality(board, *m));
     return legal_moves;
@@ -1286,7 +1286,7 @@ mod tests {
     #[test]
     fn test_get_pawn_plmoves() {
         let board1 = ChessBoard::initialize(); // white in starting position
-        let mut correct_pawn_plmoves: ArrayVec<u16, 64> = ArrayVec::new();
+        let mut correct_pawn_plmoves: ArrayVec<u16, 256> = ArrayVec::new();
 
         for from_sqi in 8..=15 {
             correct_pawn_plmoves.push(utils::encode_move(from_sqi, from_sqi + 8, 0));
@@ -1294,14 +1294,14 @@ mod tests {
         }
         correct_pawn_plmoves.sort();
 
-        let mut pawn_pl_moves: ArrayVec<u16, 64> = ArrayVec::new();
+        let mut pawn_pl_moves: ArrayVec<u16, 256> = ArrayVec::new();
         get_pawn_plmoves(&board1, &mut pawn_pl_moves);
         pawn_pl_moves.sort();
 
         assert_eq!(pawn_pl_moves, correct_pawn_plmoves);
 
         let board2 = ChessBoard::initialize_from_fen("k7/8/8/8/8/8/6p1/K6N b - - 0 1").unwrap(); // black promotions test
-        let mut correct_pawn_plmoves: ArrayVec<u16, 64> = ArrayVec::new();
+        let mut correct_pawn_plmoves: ArrayVec<u16, 256> = ArrayVec::new();
 
         for flag in 8..=11 {
             correct_pawn_plmoves.push(utils::encode_move(14, 7, flag));
@@ -1311,18 +1311,18 @@ mod tests {
         }
         correct_pawn_plmoves.sort();
 
-        let mut pawn_pl_moves: ArrayVec<u16, 64> = ArrayVec::new();
+        let mut pawn_pl_moves: ArrayVec<u16, 256> = ArrayVec::new();
         get_pawn_plmoves(&board2, &mut pawn_pl_moves);
         pawn_pl_moves.sort();
 
         assert_eq!(pawn_pl_moves, correct_pawn_plmoves);
 
         let board3 = ChessBoard::initialize_from_fen("k7/8/8/4pP2/8/8/8/K7 w - e6 0 2").unwrap(); // white en passant
-        let mut correct_pawn_plmoves: ArrayVec<u16, 64> =
+        let mut correct_pawn_plmoves: ArrayVec<u16, 256> =
             ArrayVec::from_iter([utils::encode_move(37, 45, 0), utils::encode_move(37, 44, 3)]);
         correct_pawn_plmoves.sort();
 
-        let mut pawn_pl_moves: ArrayVec<u16, 64> = ArrayVec::new();
+        let mut pawn_pl_moves: ArrayVec<u16, 256> = ArrayVec::new();
         get_pawn_plmoves(&board3, &mut pawn_pl_moves);
         pawn_pl_moves.sort();
 
@@ -1332,7 +1332,7 @@ mod tests {
     #[test]
     fn test_get_nonpk_plmoves() {
         let board1 = ChessBoard::initialize(); // white in starting position
-        let mut correct_nonpk_plmoves: ArrayVec<u16, 64> = ArrayVec::from_iter([
+        let mut correct_nonpk_plmoves: ArrayVec<u16, 256> = ArrayVec::from_iter([
             utils::encode_move(1, 16, 0),
             utils::encode_move(1, 18, 0),
             utils::encode_move(6, 23, 0),
@@ -1340,7 +1340,7 @@ mod tests {
         ]);
         correct_nonpk_plmoves.sort();
 
-        let mut nonpk_pl_moves: ArrayVec<u16, 64> = ArrayVec::new();
+        let mut nonpk_pl_moves: ArrayVec<u16, 256> = ArrayVec::new();
         get_nonpk_plmoves(&board1, &mut nonpk_pl_moves);
         nonpk_pl_moves.sort();
 
@@ -1348,7 +1348,7 @@ mod tests {
 
         let board2 =
             ChessBoard::initialize_from_fen("1q2k1r1/Ppp4b/8/5Pp1/4p3/8/8/K7 b - - 0 1").unwrap(); // black in random position
-        let mut correct_nonpk_plmoves: ArrayVec<u16, 64> = ArrayVec::from_iter([
+        let mut correct_nonpk_plmoves: ArrayVec<u16, 256> = ArrayVec::from_iter([
             utils::encode_move(57, 56, 0), // 4 queen moves
             utils::encode_move(57, 58, 0),
             utils::encode_move(57, 59, 0),
@@ -1362,7 +1362,7 @@ mod tests {
         ]);
         correct_nonpk_plmoves.sort();
 
-        let mut nonpk_pl_moves: ArrayVec<u16, 64> = ArrayVec::new();
+        let mut nonpk_pl_moves: ArrayVec<u16, 256> = ArrayVec::new();
         get_nonpk_plmoves(&board2, &mut nonpk_pl_moves);
         nonpk_pl_moves.sort();
 
@@ -1375,7 +1375,7 @@ mod tests {
             "r3kbnr/pppP1ppp/4p3/8/8/4P3/PPPp1PPP/RNBQK2R w KQkq - 0 1",
         )
         .unwrap();
-        let mut correct_king_plmoves: ArrayVec<u16, 64> = ArrayVec::from_iter([
+        let mut correct_king_plmoves: ArrayVec<u16, 256> = ArrayVec::from_iter([
             utils::encode_move(4, 12, 0),
             utils::encode_move(4, 5, 0),
             utils::encode_move(4, 11, 1),
@@ -1383,14 +1383,14 @@ mod tests {
         ]);
         correct_king_plmoves.sort();
 
-        let mut king_pl_moves: ArrayVec<u16, 64> = ArrayVec::new();
+        let mut king_pl_moves: ArrayVec<u16, 256> = ArrayVec::new();
         get_king_plmoves(&board1, &mut king_pl_moves);
         king_pl_moves.sort();
 
         assert_eq!(king_pl_moves, correct_king_plmoves);
 
         board1.make_move(utils::encode_move(8, 16, 0));
-        let mut correct_king_plmoves: ArrayVec<u16, 64> = ArrayVec::from_iter([
+        let mut correct_king_plmoves: ArrayVec<u16, 256> = ArrayVec::from_iter([
             utils::encode_move(60, 59, 0),
             utils::encode_move(60, 52, 0),
             utils::encode_move(60, 51, 1),
@@ -1398,7 +1398,7 @@ mod tests {
         ]);
         correct_king_plmoves.sort();
 
-        let mut king_pl_moves: ArrayVec<u16, 64> = ArrayVec::new();
+        let mut king_pl_moves: ArrayVec<u16, 256> = ArrayVec::new();
         get_king_plmoves(&board1, &mut king_pl_moves);
         king_pl_moves.sort();
 
@@ -1454,7 +1454,7 @@ mod tests {
     fn test_get_legal_moves() {
         let mut board = ChessBoard::initialize();
 
-        let mut correct_legal_moves: ArrayVec<u16, 64> = ArrayVec::new();
+        let mut correct_legal_moves: ArrayVec<u16, 256> = ArrayVec::new();
         for from_sqi in 8..=15 {
             correct_legal_moves.push(utils::encode_move(from_sqi, from_sqi + 8, 0));
             correct_legal_moves.push(utils::encode_move(from_sqi, from_sqi + 16, 0));
