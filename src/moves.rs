@@ -877,6 +877,12 @@ pub fn get_legal_moves(board: &mut board::ChessBoard) -> ArrayVec<u16, 256> {
     return legal_moves;
 }
 
+pub fn has_legal_moves(board: &mut board::ChessBoard) -> bool {
+    get_pseudolegal_moves(board)
+        .iter()
+        .any(|m| test_plmove_legality(board, *m))
+}
+
 // unit tests
 #[cfg(test)]
 mod tests {

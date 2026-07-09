@@ -30,7 +30,7 @@ fn main() {
                 game.result = GameResult::Draw(oxi_chess_lib::game::DrawReason::Agreement);
             }
         } else {
-            game.make_move_from_uci(input);
+            game.make_move_from_uci(input, true);
             render_board(&game.board);
         }
     }
