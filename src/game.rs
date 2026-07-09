@@ -35,12 +35,17 @@ impl ChessGame {
         return game;
     }
 
-    pub fn make_move(&mut self, movei: u16, gen_legal_moves: bool) -> Result<GameResult, String> {
+    pub fn make_move(
+        &mut self,
+        movei: u16,
+        gen_legal_moves: bool,
+        legal_move_bypass: bool,
+    ) -> Result<GameResult, String> {
         if self.result != GameResult::InProgress {
             return Err("Game over".to_string());
         }
 
-        if self.legal_moves.contains(&movei) {
+        if legal_move_bypass || self.legal_moves.contains(&movei) {
             // move will not be in the legal moves list if it is not valid, thus this is sufficient validation.
             let undo_info = self.board.make_move(movei)?; // returns error from board.make_move() if there is one.
             if gen_legal_moves {
@@ -92,22 +97,23 @@ impl ChessGame {
         &mut self,
         uci_move: &str,
         gen_legal_moves: bool,
+        legal_move_bypass: bool,
     ) -> Result<GameResult, String> {
         let movei = utils::encode_from_uci(uci_move)?;
         if (movei << 12) == 0 {
             // no flag is given
             for lmovei in &self.legal_moves {
                 if lmovei >> 4 == movei >> 4 {
-                    return self.make_move(*lmovei, gen_legal_moves);
+                    return self.make_move(*lmovei, gen_legal_moves, legal_move_bypass);
                 }
             }
         } else {
             if self.legal_moves.contains(&movei) {
                 // promotion
-                return self.make_move(movei, gen_legal_moves);
+                return self.make_move(movei, gen_legal_moves, legal_move_bypass);
             } else if self.legal_moves.contains(&(movei + 4)) {
                 // promotion w capture
-                return self.make_move(movei + 4, gen_legal_moves);
+                return self.make_move(movei + 4, gen_legal_moves, legal_move_bypass);
             }
         }
 
@@ -235,14 +241,14 @@ mod tests {
         );
 
         let mut game = ChessGame::initialize((1, 1), None); // 3 fold repetition
-        game.make_move(encode_move(1, 18, 0), true);
-        game.make_move(encode_move(57, 42, 0), true);
-        game.make_move(encode_move(18, 1, 0), true);
-        game.make_move(encode_move(42, 57, 0), true);
-        game.make_move(encode_move(1, 18, 0), true);
-        game.make_move(encode_move(57, 42, 0), true);
-        game.make_move(encode_move(18, 1, 0), true);
-        game.make_move(encode_move(42, 57, 0), false);
+        game.make_move(encode_move(1, 18, 0), true, false);
+        game.make_move(encode_move(57, 42, 0), true, false);
+        game.make_move(encode_move(18, 1, 0), true, false);
+        game.make_move(encode_move(42, 57, 0), true, false);
+        game.make_move(encode_move(1, 18, 0), true, false);
+        game.make_move(encode_move(57, 42, 0), true, false);
+        game.make_move(encode_move(18, 1, 0), true, false);
+        game.make_move(encode_move(42, 57, 0), false, false);
 
         assert_eq!(
             game.check_result(),
@@ -289,12 +295,12 @@ mod tests {
     fn test_make_move() {
         let mut game = ChessGame::initialize((1, 1), None); // starting position e2-e4
         let movei = encode_move(12, 28, 0);
-        let move_result = game.make_move(movei, false);
+        let move_result = game.make_move(movei, false, false);
         assert!(move_result.is_ok());
 
         let mut game = ChessGame::initialize((1, 1), None); // illegal first move
         let movei = encode_move(12, 36, 0);
-        let move_result = game.make_move(movei, false);
+        let move_result = game.make_move(movei, false, false);
         assert!(move_result.is_err());
 
         let mut game = ChessGame::initialize(
@@ -302,7 +308,7 @@ mod tests {
             Some("rnbqkbnr/pppp1ppp/8/4p3/6P1/5P2/PPPPP2P/RNBQKBNR b KQkq - 0 1"),
         );
         let movei = encode_move(59, 31, 0); // checkmating move
-        let move_result = game.make_move(movei, false);
+        let move_result = game.make_move(movei, false, false);
         assert_eq!(
             move_result.unwrap(),
             GameResult::BlackWins(WinReason::Checkmate)
@@ -313,7 +319,7 @@ mod tests {
         let mut game = ChessGame::initialize((1, 1), None);
         let game_unchanged = game.clone();
         let movei = encode_move(12, 28, 0);
-        _ = game.make_move(movei, false);
+        _ = game.make_move(movei, false, false);
         _ = game.unmake_move(false);
         assert_eq!(game, game_unchanged);
     }
