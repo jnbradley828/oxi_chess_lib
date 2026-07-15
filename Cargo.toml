@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 arrayvec = "0.7.8"
+rand = "0.10.2"
 rustc-hash = "2.1.1"
 thousands = "0.2.0"
 
