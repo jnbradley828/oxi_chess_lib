@@ -1,5 +1,7 @@
 pub mod board;
 pub mod game;
+pub mod magic_gen;
+pub mod magic_tables;
 pub mod moves;
 pub mod perft;
 pub mod rules;
